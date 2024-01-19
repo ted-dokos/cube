@@ -1,0 +1,4 @@
+reorder_modules = false
+use_small_heuristics = "Max"
+wrap_comments = true
+comment_width = 100
