@@ -1,12 +1,15 @@
 // This hides the console window when launching cube.exe,
 // at the cost of suppressing println! statements.
 /* #![windows_subsystem = "windows"] */
+#![feature(lazy_cell)]
 
 mod camera;
+mod constants;
 mod game_state;
 mod gpu_state;
 mod texture;
 
+use crate::constants::TIME_PER_GAME_TICK;
 use crate::game_state::{GameState, InputState};
 use crate::gpu_state::WebGPUState;
 
@@ -151,8 +154,6 @@ fn main() -> windows::core::Result<()> {
         let game_thread = thread::spawn(move || {
             assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
             let mut last_tick = Instant::now();
-            const GAME_TICKS_PER_SECOND: f64 = 25.0;
-            let TIME_PER_GAME_TICK: Duration = Duration::from_secs_f64(1.0 / GAME_TICKS_PER_SECOND);
             loop {
                 {
                     let mut queue = input_event_queue.lock().unwrap();
@@ -224,8 +225,8 @@ fn main() -> windows::core::Result<()> {
                 //
                 // If the time window does span multiple frames, I just pass the same input on
                 // every frame.
-                while current_time - last_tick >= TIME_PER_GAME_TICK {
-                    last_tick = last_tick + TIME_PER_GAME_TICK;
+                while current_time - last_tick >= *TIME_PER_GAME_TICK {
+                    last_tick = last_tick + *TIME_PER_GAME_TICK;
                     game_state.update(&input_state, last_tick);
                 }
                 let _ = tx.send(game_state.clone());
