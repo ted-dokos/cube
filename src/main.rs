@@ -100,7 +100,6 @@ fn main() -> windows::core::Result<()> {
             {
                 assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
                 let mut queue = gpu_event_queue.lock().unwrap();
-                println!("geq len {}", (*queue).len());
                 while !(*queue).is_empty() {
                     let event = (*queue).pop_front().expect("queue somehow empty?");
                     match event.message {
@@ -157,7 +156,6 @@ fn main() -> windows::core::Result<()> {
             loop {
                 {
                     let mut queue = input_event_queue.lock().unwrap();
-                    println!("ieq len {}", (*queue).len());
                     while !(*queue).is_empty() {
                         let event = (*queue).pop_front().expect("queue somehow empty?");
                         match event.message {
