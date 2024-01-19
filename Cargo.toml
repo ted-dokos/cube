@@ -1,0 +1,29 @@
+[package]
+name = "cube"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.79"
+bytemuck = { version = "1.12.0", features = ["derive"] }
+image = { version = "0.24.7", features = ["png", "jpeg"] }
+pollster = "0.3.0"
+raw-window-handle = "0.5.2"
+wgpu = "0.18.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies.windows]
+    version = "0.52.0"
+    features = ["Win32",
+                "Win32_Foundation",
+                "Win32_Graphics_Gdi",
+                "Win32_System_LibraryLoader",
+                "Win32_UI",
+                "Win32_UI_Input",
+                "Win32_UI_Input_KeyboardAndMouse",
+                "Win32_UI_WindowsAndMessaging"]
+
+[[bin]]
+name = "cube"
+path = "src/main.rs"
