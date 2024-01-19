@@ -1,6 +1,5 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::texture;
-
 use std::{
     ffi::c_void,
     mem::{self},

@@ -79,23 +79,6 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                 println!("state = {}", getptr);
                 let _ = (*state).render();
                 ValidateRect(window, None);
-                // let mut paint = MaybeUninit::<PAINTSTRUCT>::uninit();
-                // let device_context = BeginPaint(window, paint.as_mut_ptr());
-                // let paint = paint.assume_init();
-
-                // static mut OP : ROP_CODE = WHITENESS;
-                // PatBlt(device_context,
-                //   paint.rcPaint.left,
-                //   paint.rcPaint.top,
-                //   paint.rcPaint.right - paint.rcPaint.left,
-                //   paint.rcPaint.bottom - paint.rcPaint.top,
-                //   OP);
-                // if OP == WHITENESS {
-                //   OP = BLACKNESS;
-                // } else {
-                //   OP = WHITENESS;
-                // }
-                // EndPaint(window, &paint);
                 LRESULT(0)
             }
             WM_DESTROY => {
@@ -117,7 +100,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                 LRESULT(0)
             }
             WM_MOUSEMOVE => {
-                println!("WM_MOUSEMOVE");
+                // println!("WM_MOUSEMOVE");
                 if !state.is_null() {
                     let mut pt: POINT = mem::zeroed();
                     let _ = GetCursorPos(&mut pt);
