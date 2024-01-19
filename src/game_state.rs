@@ -1,10 +1,8 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use cgmath::{Vector3, Zero};
 
 use crate::{camera::Camera, constants::TIME_PER_GAME_TICK};
-
-const GAME_TICKS_PER_SECOND: f64 = 25.0;
 
 #[derive(Clone, Copy)]
 pub struct GameState {

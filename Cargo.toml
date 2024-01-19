@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.79"
 bytemuck = { version = "1.12.0", features = ["derive"] }
-cargo-valgrind = "2.1.0"
 cgmath = "0.18.0"
 image = { version = "0.24.7", features = ["png", "jpeg"] }
 pollster = "0.3.0"

@@ -9,7 +9,7 @@ mod game_state;
 mod gpu_state;
 mod texture;
 
-use crate::constants::TIME_PER_GAME_TICK;
+use crate::constants::{MIN_TIME_PER_RENDER_FRAME, TIME_PER_GAME_TICK};
 use crate::game_state::{GameState, InputState};
 use crate::gpu_state::WebGPUState;
 
@@ -17,9 +17,8 @@ use pollster::block_on;
 use std::collections::VecDeque;
 use std::mem::{self};
 use std::sync::{mpsc, Arc, Mutex};
-use std::thread::{self, Thread};
+use std::thread::{self};
 use std::time::{Duration, Instant};
-use thread_priority::ThreadPriority;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LEFT, VK_RIGHT};
 use windows::Win32::{Foundation::POINT, System::LibraryLoader::GetModuleHandleA};
 use windows::{
@@ -66,9 +65,9 @@ fn main() -> windows::core::Result<()> {
         )
     };
 
-    let mut gpu_event_queue = Arc::new(Mutex::new(EventQueue::new()));
-    let mut input_event_queue = Arc::new(Mutex::new(EventQueue::new()));
-
+    // These will get manipulated directly by wndproc.
+    let gpu_event_queue = Arc::new(Mutex::new(EventQueue::new()));
+    let input_event_queue = Arc::new(Mutex::new(EventQueue::new()));
     unsafe {
         SetWindowLongPtrA(
             window,
@@ -96,63 +95,74 @@ fn main() -> windows::core::Result<()> {
             );
         };
     }
-    assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
     {
         let gpu_event_queue = Arc::clone(&gpu_event_queue);
-        let gpu_thread = thread::spawn(move || loop {
-            {
-                assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
-                let mut queue = gpu_event_queue.lock().unwrap();
-                while !(*queue).is_empty() {
-                    let event = (*queue).pop_front().expect("queue somehow empty?");
-                    match event.message {
-                        WM_MOUSEMOVE => match event.data {
-                            EventData::MouseMoveData(point) => {
-                                gpu_state.update_bg_color(&point);
-                            }
-                            _ => {
-                                printUnexpected!("WM_MOUSEMOVE");
-                            }
-                        },
-                        WM_PAINT => match event.data {
-                            EventData::EmptyData() => {
-                                // not necessary anymore, we re-render at the end of every loop
-                                let _ = gpu_state.render();
-                            }
-                            _ => {
-                                printUnexpected!("WM_PAINT");
-                            }
-                        },
-                        WM_SIZE => match event.data {
-                            EventData::ResizeData(rect) => {
-                                gpu_state.resize(rect);
-                            }
-                            _ => {
-                                printUnexpected!("WM_SIZE");
-                            }
-                        },
-                        _ => (),
+        let _gpu_thread = thread::spawn(move || {
+            let mut last_render = Instant::now();
+            let _ = gpu_state.render();
+
+            let mut last_fps_print = last_render;
+            let mut frames = 0;
+            loop {
+                {
+                    let mut queue = gpu_event_queue.lock().unwrap();
+                    while !(*queue).is_empty() {
+                        let event = (*queue).pop_front().expect("queue somehow empty?");
+                        match event.message {
+                            WM_MOUSEMOVE => match event.data {
+                                EventData::MouseMoveData(point) => {
+                                    gpu_state.update_bg_color(&point);
+                                }
+                                _ => {
+                                    printUnexpected!("WM_MOUSEMOVE");
+                                }
+                            },
+                            WM_PAINT => match event.data {
+                                EventData::EmptyData() => {}
+                                _ => {
+                                    printUnexpected!("WM_PAINT");
+                                }
+                            },
+                            WM_SIZE => match event.data {
+                                EventData::ResizeData(rect) => {
+                                    gpu_state.resize(rect);
+                                }
+                                _ => {
+                                    printUnexpected!("WM_SIZE");
+                                }
+                            },
+                            _ => (),
+                        }
                     }
                 }
-            }
-            let mut game_state_res = rx.try_recv();
-            if game_state_res.is_ok() {
-                let mut next = rx.try_recv();
-                while next.is_ok() {
-                    game_state_res = next;
-                    next = rx.try_recv();
+                let mut game_state_res = rx.try_recv();
+                if game_state_res.is_ok() {
+                    let mut next = rx.try_recv();
+                    while next.is_ok() {
+                        game_state_res = next;
+                        next = rx.try_recv();
+                    }
+                    let game_state: GameState = game_state_res.unwrap();
+                    gpu_state.update_camera(game_state.get_camera());
                 }
-                let game_state: GameState = game_state_res.unwrap();
-                gpu_state.update_camera(game_state.get_camera());
-                gpu_state.render();
-                thread::sleep(Duration::from_millis(5));
+                if Instant::now() >= last_fps_print + Duration::from_secs(2) {
+                    println!("FPS = {}", frames as f32 / 2.0);
+                    frames = 0;
+                    last_fps_print = Instant::now();
+                }
+                let next = Instant::now();
+                if next >= last_render + *MIN_TIME_PER_RENDER_FRAME {
+                    last_render = next;
+                    frames += 1;
+                    let _ = gpu_state.render();
+                }
             }
         });
     }
     {
         let input_event_queue = Arc::clone(&input_event_queue);
-        let game_thread = thread::spawn(move || {
-            assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
+        let _game_thread = thread::spawn(move || {
+            //assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
             let mut last_tick = Instant::now();
             loop {
                 {
@@ -165,6 +175,10 @@ fn main() -> windows::core::Result<()> {
                                     let virtual_key = VIRTUAL_KEY(wparam.0 as u16);
                                     match virtual_key {
                                         VK_LEFT => {
+                                            // TODO: this does not work as expected. Some internet
+                                            // discussions suggest that maybe I need to wait longer
+                                            // to see these fields get populated?
+                                            // https://stackoverflow.com/questions/44897991/wm-keydown-repeat-count
                                             let key_flags = lparam.0 as u32;
                                             let was_key_already_down: bool =
                                                 (key_flags & KF_REPEAT) == KF_REPEAT;
@@ -188,7 +202,7 @@ fn main() -> windows::core::Result<()> {
                                 }
                             },
                             WM_KEYUP => match event.data {
-                                EventData::KeyUpData(wparam, lparam) => {
+                                EventData::KeyUpData(wparam, _lparam) => {
                                     let virtual_key = VIRTUAL_KEY(wparam.0 as u16);
                                     match virtual_key {
                                         VK_LEFT => {
@@ -349,7 +363,6 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             LRESULT(0)
         }
         WM_KEYDOWN => {
-            println!("WM_KEYDOWN");
             {
                 let mut queue = unsafe { (*input_queue_ptr).lock().unwrap() };
                 (*queue).push_back(WindowsEvent {
