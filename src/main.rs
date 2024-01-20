@@ -83,6 +83,9 @@ fn main() -> windows::core::Result<()> {
         )
     };
 
+    // Set sleep granularity to 1ms.
+    unsafe { windows::Win32::Media::timeBeginPeriod(1) };
+
     let mut gpu_state: WebGPUState = block_on(WebGPUState::new(window, hinstance.into()));
     let mut game_state = GameState::new(1.0);
     let mut input_state = InputState::new();
