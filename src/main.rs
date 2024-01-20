@@ -158,6 +158,11 @@ fn main() -> windows::core::Result<()> {
                     last_render = next;
                     frames += 1;
                     let _ = gpu_state.render();
+                } else {
+                    let time_to_next_frame = last_render + *MIN_TIME_PER_RENDER_FRAME - next;
+                    if time_to_next_frame > Duration::from_micros(1500) {
+                        thread::sleep(Duration::from_millis(time_to_next_frame.as_millis() as u64 - 1));
+                    }
                 }
             }
         });
@@ -247,7 +252,11 @@ fn main() -> windows::core::Result<()> {
                     game_state.update(&input_state, last_tick);
                 }
                 let _ = tx.send(game_state.clone());
-                thread::sleep(Duration::from_millis(5));
+
+                let time_to_next_tick = last_tick + *TIME_PER_GAME_TICK - Instant::now();
+                if time_to_next_tick > Duration::from_micros(1500) {
+                    thread::sleep(Duration::from_millis(time_to_next_tick.as_millis() as u64 - 1));
+                }
             }
         });
     }
