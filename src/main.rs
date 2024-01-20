@@ -248,38 +248,6 @@ fn main() -> windows::core::Result<()> {
             }
         });
     }
-    // let game_start = std::time::Instant::now();
-    // let mut last_tick = game_start.clone();
-    // let mut tick_num = 0;
-    // const GAME_TICKS_PER_SECOND: f64 = 1.0;
-    // const MS_PER_GAME_TICK: std::time::Duration =
-    //   std::time::Duration::from_micros(
-    //   ((1000 * 1000) as f64 / GAME_TICKS_PER_SECOND) as u64);
-    // let mut accumulated_time = std::time::Duration::from_millis(0);
-    // let mut last_instant = game_start;
-    // let mut message = MSG::default();
-    // let mut keep_running = true;
-    // loop {
-    //     let next_instant = std::time::Instant::now();
-    //     accumulated_time += next_instant - last_instant;
-    //     if accumulated_time > MS_PER_GAME_TICK {
-    //         tick_num += 1;
-    //         println!("GAME_TICK {}", tick_num);
-    //         last_tick += MS_PER_GAME_TICK;
-    //         accumulated_time = (accumulated_time - MS_PER_GAME_TICK);
-    //     }
-    //     last_instant = next_instant;
-    //     while PeekMessageA(&mut message, None, 0, 0, PM_REMOVE).into() {
-    //         if message.message == WM_QUIT {
-    //             keep_running = false;
-    //             break;
-    //         }
-    //         DispatchMessageA(&message);
-    //     }
-    //     if !keep_running {
-    //         break;
-    //     }
-    // }
 
     let mut message = MSG::default();
     unsafe {
