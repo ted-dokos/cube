@@ -19,7 +19,7 @@ use std::mem::{self};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self};
 use std::time::{Duration, Instant};
-use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LEFT, VK_RIGHT};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LEFT, VK_RIGHT, VK_DOWN, VK_UP};
 use windows::Win32::{Foundation::POINT, System::LibraryLoader::GetModuleHandleA};
 use windows::{
     core::*,
@@ -202,6 +202,12 @@ fn main() -> windows::core::Result<()> {
                                                 input_state.right = true;
                                             }
                                         }
+                                        VK_UP => {
+                                            input_state.forward = true;
+                                        }
+                                        VK_DOWN => {
+                                            input_state.backward = true;
+                                        }
                                         _ => {}
                                     }
                                 }
@@ -218,6 +224,12 @@ fn main() -> windows::core::Result<()> {
                                         }
                                         VK_RIGHT => {
                                             input_state.right = false;
+                                        }
+                                        VK_UP => {
+                                            input_state.forward = false;
+                                        }
+                                        VK_DOWN => {
+                                            input_state.backward = false;
                                         }
                                         _ => {}
                                     }
