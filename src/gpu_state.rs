@@ -72,6 +72,7 @@ pub struct WebGPUState {
     background_color: wgpu::Color,
     diffuse_bind_group: wgpu::BindGroup,
     //diffuse_texture: texture::Texture,
+    depth_texture: texture::Texture,
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
@@ -191,13 +192,11 @@ impl WebGPUState {
         );
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
-
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
@@ -220,6 +219,8 @@ impl WebGPUState {
             }],
             label: Some("camera_bind_group"),
         });
+
+        let depth_texture = texture::create_depth_texture(&device, &config, "depth_texture");
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -273,7 +274,13 @@ impl WebGPUState {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -291,8 +298,8 @@ impl WebGPUState {
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
-                        - INSTANCE_DISPLACEMENT;
+                    let position = -cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
+                        + INSTANCE_DISPLACEMENT;
 
                     let rotation = if position.is_zero() {
                         // this is needed so an object at (0, 0, 0) won't get scaled to zero
@@ -333,6 +340,7 @@ impl WebGPUState {
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             diffuse_bind_group,
             //diffuse_texture,
+            depth_texture,
             camera,
             camera_uniform,
             camera_buffer,
@@ -347,6 +355,8 @@ impl WebGPUState {
             self.config.height = (rect.bottom - rect.top) as u32;
             self.surface.configure(&self.device, &self.config);
         }
+        self.depth_texture =
+            texture::create_depth_texture(&self.device, &self.config, "depth_texture");
     }
     pub fn update_bg_color(&mut self, point: &POINT) {
         self.background_color = wgpu::Color {
@@ -386,7 +396,14 @@ impl WebGPUState {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
