@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use cgmath::{Vector3, Zero};
+use cgmath::Vector3;
 
 use crate::{camera::Camera, constants::TIME_PER_GAME_TICK};
 
@@ -41,25 +41,42 @@ impl GameState {
         self.tick += 1;
         self.update_instant = step_time;
         const LATERAL_ACCEL: Vector3<f32> = Vector3::<f32>::new(1.0, 0.0, 0.0);
-        let lateral_velocity: Vector3<f32> = (*TIME_PER_GAME_TICK).as_secs_f32() * LATERAL_ACCEL;
+        let delta_t = (*TIME_PER_GAME_TICK).as_secs_f32();
+        let mut delta_v: Vector3<f32> = (0.0, 0.0, 0.0).into();
+        let camera_vel = self.camera.get_velocity();
         if input.right && !input.left {
-            self.camera.move_eye(&lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
-        } else if input.left {
-            self.camera.move_eye(&-lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
+            delta_v += delta_t * LATERAL_ACCEL;
+            //self.camera.move_eye(&lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
+        } else if input.left && !input.right {
+            delta_v -= delta_t * LATERAL_ACCEL;
+            //self.camera.move_eye(&-lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
         } else {
-            // neither are pressed
-            self.camera.move_eye(&Vector3::<f32>::zero(), (*TIME_PER_GAME_TICK).as_secs_f32());
+            // Neither or both are pressed, apply lateral damping.
+            delta_v += (-delta_t * camera_vel.x, 0.0, 0.0).into();
+            //self.camera.move_eye(&delta_v, (*TIME_PER_GAME_TICK).as_secs_f32());
         }
+        const FWD_ACCEL: Vector3<f32> = Vector3::<f32>::new(0.0, 0.0, -1.0);
+        if input.forward && !input.backward {
+            delta_v += delta_t * FWD_ACCEL;
+        } else if input.backward && !input.forward {
+            delta_v -= delta_t * FWD_ACCEL;
+        } else {
+            // Neither or both are pressed, apply forward damping.
+            delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
+        }
+        self.camera.move_eye(&delta_v, delta_t);
     }
 }
 
 pub struct InputState {
+    pub forward: bool,
+    pub backward: bool,
     pub left: bool,
     pub right: bool,
 }
 
 impl InputState {
     pub fn new() -> Self {
-        InputState { left: false, right: false }
+        InputState { forward: false, backward: false, left: false, right: false }
     }
 }

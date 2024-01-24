@@ -37,9 +37,9 @@ impl Camera {
     // pub fn get_eye(&self) -> Point3<f32> {
     //     self.eye
     // }
-    // pub fn get_velocity(&self) -> Vector3<f32> {
-    //     self.velocity
-    // }
+    pub fn get_velocity(&self) -> Vector3<f32> {
+        self.velocity
+    }
     pub fn set_aspect(&mut self, aspect: f32) {
         self.aspect = aspect;
     }
