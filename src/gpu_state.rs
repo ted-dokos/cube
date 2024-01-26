@@ -300,10 +300,12 @@ impl WebGPUState {
                     } else {
                         cgmath::Quaternion::from_axis_angle(
                             position.normalize(),
-                            cgmath::Deg(9.0 * x as f32),
+                            //cgmath::Vector3::unit_z(),
+                            cgmath::Deg(3.0 * ((x+1) * (z+1)) as f32),
+                            //cgmath::Deg(5.0 * (x) as f32),
                         )
                     };
-
+                    println!("rotation magnitude = {}", rotation.magnitude());
                     Instance { position, rotation }
                 })
             })
@@ -452,9 +454,9 @@ impl Instance {
                 self.position.y,
                 self.position.z,
                 self.rotation.s,
-                self.rotation.v.x,
-                self.rotation.v.y,
-                self.rotation.v.z,
+                -self.rotation.v.z,
+                -self.rotation.v.x,
+                -self.rotation.v.y,
             ],
         }
     }

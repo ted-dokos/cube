@@ -28,7 +28,7 @@ fn apply_rotor_to_vector(
     // rotor.
     // Strategy: calculate RvR', where R' is "R-inverse" and is the conjugate of R.
     // Calculate S = Rv first:
-    var s_x: f32 = rotor.x * vector.x + rotor.y * vector.y + rotor.w * vector.z;
+    var s_x: f32 = rotor.x * vector.x + rotor.y * vector.y - rotor.w * vector.z;
     var s_y: f32 = rotor.x * vector.y - rotor.y * vector.x + rotor.z * vector.z;
     var s_z: f32 = rotor.x * vector.z - rotor.z * vector.y + rotor.w * vector.x;
     var s_xyz: f32 = rotor.y * vector.z + rotor.z * vector.x + rotor.w * vector.y;
@@ -37,7 +37,7 @@ fn apply_rotor_to_vector(
     var out: vec3<f32>;
     out.x = s_x * rotor.x + s_y * rotor.y + s_xyz * rotor.z - s_z * rotor.w;
     out.y = s_y * rotor.x - s_x * rotor.y + s_z * rotor.z + s_xyz * rotor.w;
-    out.z = s_z * rotor.x - s_xyz * rotor.y - s_y * rotor.z + s_x * rotor.w;
+    out.z = s_z * rotor.x + s_xyz * rotor.y - s_y * rotor.z + s_x * rotor.w;
     return out;
 }
 
