@@ -73,7 +73,7 @@ pub async fn load_model(
     let mut obj_reader = BufReader::new(obj_cursor);
 
     let (models, obj_materials) = tobj::load_obj_buf_async(
-        (&mut obj_reader),
+        &mut obj_reader,
         &tobj::LoadOptions { triangulate: true, single_index: true, ..Default::default() },
         |p| async move {
             let mat_text = resources::load_string(&p).await.unwrap();

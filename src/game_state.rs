@@ -17,7 +17,7 @@ impl GameState {
             camera: Camera::new(
                 // position the camera 1 unit up and 2 units back
                 // +z is out of the screen
-                (0.0, 1.0, 2.0).into(),
+                (0.0, 4.0, 8.0).into(),
                 // have it look at the origin
                 (0.0, -1.0, -2.0).into(),
                 // which way is "up"
@@ -40,7 +40,8 @@ impl GameState {
     pub fn update(&mut self, input: &InputState, step_time: Instant) {
         self.tick += 1;
         self.update_instant = step_time;
-        const LATERAL_ACCEL: Vector3<f32> = Vector3::<f32>::new(1.0, 0.0, 0.0);
+        const ACCEL: f32 = 3.0;
+        const LATERAL_ACCEL: Vector3<f32> = Vector3::<f32>::new(ACCEL, 0.0, 0.0);
         let delta_t = (*TIME_PER_GAME_TICK).as_secs_f32();
         let mut delta_v: Vector3<f32> = (0.0, 0.0, 0.0).into();
         let camera_vel = self.camera.get_velocity();
@@ -55,7 +56,7 @@ impl GameState {
             delta_v += (-delta_t * camera_vel.x, 0.0, 0.0).into();
             //self.camera.move_eye(&delta_v, (*TIME_PER_GAME_TICK).as_secs_f32());
         }
-        const FWD_ACCEL: Vector3<f32> = Vector3::<f32>::new(0.0, 0.0, -1.0);
+        const FWD_ACCEL: Vector3<f32> = Vector3::<f32>::new(0.0, 0.0, -ACCEL);
         if input.forward && !input.backward {
             delta_v += delta_t * FWD_ACCEL;
         } else if input.backward && !input.forward {
