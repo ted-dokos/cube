@@ -7,6 +7,8 @@ mod camera;
 mod constants;
 mod game_state;
 mod gpu_state;
+mod model;
+mod resources;
 mod texture;
 
 use crate::constants::{MIN_TIME_PER_RENDER_FRAME, TIME_PER_GAME_TICK};

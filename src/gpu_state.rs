@@ -1,7 +1,13 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
-use crate::camera::Camera;
-use crate::texture;
+use crate::{
+    camera::Camera,
+    model::{self, DescribeVB, Mesh, ModelVertex},
+    texture,
+};
+
 use cgmath::{InnerSpace, Rotation3, Zero};
+use std::env;
+use std::ops::Range;
 use std::{
     ffi::c_void,
     mem::{self},
@@ -64,9 +70,6 @@ pub struct WebGPUState {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
@@ -77,6 +80,7 @@ pub struct WebGPUState {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    obj_model: model::Model,
 }
 impl WebGPUState {
     pub async fn new(window: HWND, hinstance: HINSTANCE) -> Self {
@@ -229,29 +233,13 @@ impl WebGPUState {
                 push_constant_ranges: &[],
             });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
-
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[
-                    Vertex::get_vertex_buffer_layout(),
-                    InstanceRaw::get_vertex_buffer_layout(),
-                ],
+                buffers: &[ModelVertex::describe_vb(), InstanceRaw::get_vertex_buffer_layout()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -295,10 +283,11 @@ impl WebGPUState {
             0.0,
             NUM_INSTANCES_PER_ROW as f32 * 0.5,
         );
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = -cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
+                    let position = (-SPACE_BETWEEN) * cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
                         + INSTANCE_DISPLACEMENT;
 
                     let rotation = if position.is_zero() {
@@ -325,6 +314,10 @@ impl WebGPUState {
             contents: bytemuck::cast_slice(&instances_raw),
             usage: wgpu::BufferUsages::VERTEX,
         });
+        println!("{}", env::current_dir().unwrap().to_str().unwrap());
+        let obj_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+            .await
+            .unwrap();
 
         Self {
             surface,
@@ -332,9 +325,6 @@ impl WebGPUState {
             queue,
             config,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
             instances,
             instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
@@ -345,6 +335,7 @@ impl WebGPUState {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            obj_model,
         }
     }
     pub fn resize(&mut self, rect: RECT) {
@@ -407,13 +398,18 @@ impl WebGPUState {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as u32);
+
+            draw_mesh_instanced(
+                &mut render_pass,
+                &self.obj_model.meshes[0],
+                0..self.instances.len() as u32,
+            );
         }
 
         // submit will accept anything that implements IntoIter
@@ -424,37 +420,26 @@ impl WebGPUState {
     }
 }
 
-// Data for the graphics pipeline
-
-// Using the C repr is important here as we're using this in the vertex buffer, which crosses into
-// the GPU boundary.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
+#[allow(unused)]
+fn draw_mesh<'a, 'b>(render_pass: &mut wgpu::RenderPass<'a>, mesh: &'b Mesh)
+where
+    'b: 'a,
+{
+    draw_mesh_instanced(render_pass, mesh, 0..1);
 }
-impl Vertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
-    fn get_vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBUTES,
-        }
-    }
+fn draw_mesh_instanced<'a, 'b>(
+    render_pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'b Mesh,
+    instances: Range<u32>,
+) where
+    'b: 'a,
+{
+    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614] }, // A
-    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354] }, /* B */
-    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397] }, // C
-    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914] },    // D
-    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641] },    // E
-];
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
-
+// Data for the graphics pipeline.
 struct Instance {
     position: cgmath::Vector3<f32>,
     rotation: cgmath::Quaternion<f32>,
