@@ -1,7 +1,7 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
     camera::Camera,
-    model::{self, DescribeVB, Mesh, ModelVertex},
+    model::{self, DescribeVB, Material, Mesh, ModelVertex},
     texture,
 };
 
@@ -73,8 +73,6 @@ pub struct WebGPUState {
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
-    diffuse_bind_group: wgpu::BindGroup,
-    //diffuse_texture: texture::Texture,
     depth_texture: texture::Texture,
     camera: Camera,
     camera_uniform: CameraUniform,
@@ -134,9 +132,6 @@ impl WebGPUState {
         };
         surface.configure(&device, &config);
 
-        let diffuse_bytes = include_bytes!("../assets/happy-tree.png");
-        let diffuse_texture =
-            texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -161,20 +156,7 @@ impl WebGPUState {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: Some("diffuse_bind_group"),
-        });
+
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -305,7 +287,6 @@ impl WebGPUState {
                             //cgmath::Deg(5.0 * (x) as f32),
                         )
                     };
-                    println!("rotation magnitude = {}", rotation.magnitude());
                     Instance { position, rotation }
                 })
             })
@@ -330,8 +311,6 @@ impl WebGPUState {
             instances,
             instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
-            diffuse_bind_group,
-            //diffuse_texture,
             depth_texture,
             camera,
             camera_uniform,
@@ -404,12 +383,14 @@ impl WebGPUState {
 
             render_pass.set_pipeline(&self.render_pipeline);
 
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
+            let mesh = &self.obj_model.meshes[0];
+            let material = &self.obj_model.materials[mesh.material];
             draw_mesh_instanced(
                 &mut render_pass,
-                &self.obj_model.meshes[0],
+                mesh,
+                material,
                 0..self.instances.len() as u32,
             );
         }
@@ -423,21 +404,21 @@ impl WebGPUState {
 }
 
 #[allow(unused)]
-fn draw_mesh<'a, 'b>(render_pass: &mut wgpu::RenderPass<'a>, mesh: &'b Mesh)
-where
-    'b: 'a,
+fn draw_mesh<'a>(render_pass: &mut wgpu::RenderPass<'a>, mesh: &'a Mesh, material: &'a Material)
+
 {
-    draw_mesh_instanced(render_pass, mesh, 0..1);
+    draw_mesh_instanced(render_pass, mesh, material, 0..1);
 }
-fn draw_mesh_instanced<'a, 'b>(
+fn draw_mesh_instanced<'a>(
     render_pass: &mut wgpu::RenderPass<'a>,
-    mesh: &'b Mesh,
+    mesh: &'a Mesh,
+    material: &'a Material,
     instances: Range<u32>,
-) where
-    'b: 'a,
+)
 {
     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    render_pass.set_bind_group(0, &material.bind_group, &[]);
     render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
 }
 
