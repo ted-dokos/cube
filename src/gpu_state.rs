@@ -1,6 +1,6 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
-    camera::Camera,
+    camera::{Camera, CameraUniform},
     light::LightUniform,
     model::{self, DescribeVB, Material, Mesh, ModelVertex},
     texture,
@@ -42,26 +42,6 @@ unsafe impl raw_window_handle::HasRawWindowHandle for MyWindowHandle {
 unsafe impl raw_window_handle::HasRawDisplayHandle for MyWindowHandle {
     fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         raw_window_handle::RawDisplayHandle::from(raw_window_handle::WindowsDisplayHandle::empty())
-    }
-}
-
-// We need this for Rust to store our data correctly for the shaders
-#[repr(C)]
-// This is so we can store this in a buffer
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    // We can't use cgmath with bytemuck directly, so we'll have
-    // to convert the Matrix4 into a 4x4 f32 array
-    view_proj: [[f32; 4]; 4],
-}
-impl CameraUniform {
-    fn new() -> Self {
-        use cgmath::SquareMatrix;
-        Self { view_proj: cgmath::Matrix4::identity().into() }
-    }
-
-    fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_projection_matrix().into();
     }
 }
 
@@ -187,7 +167,7 @@ impl WebGPUState {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,

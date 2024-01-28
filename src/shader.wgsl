@@ -1,8 +1,9 @@
-struct CameraUniform {
+struct Camera {
+    view_pos: vec3<f32>,
     view_proj: mat4x4<f32>,
 };
 @group(1) @binding(0)
-var<uniform> camera: CameraUniform;
+var<uniform> camera: Camera;
 
 struct Light {
     position: vec3<f32>,
@@ -109,7 +110,12 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
     let diffuse_color = light.color * diffuse_strength;
 
-    let result = (ambient_color + diffuse_color) * object_color.xyz;
+    let view_dir = normalize(camera.view_pos - in.world_position);
+    let half_dir = normalize(view_dir + light_dir);
+    let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
+    let specular_color = light.color * specular_strength;
+
+    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
     return vec4<f32>(result, object_color.a);
 }
 @fragment
