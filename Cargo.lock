@@ -288,6 +288,7 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "cgmath",
+ "debug_print",
  "fs_extra",
  "glob",
  "image",
@@ -309,6 +310,12 @@ dependencies = [
  "libloading 0.8.1",
  "winapi",
 ]
+
+[[package]]
+name = "debug_print"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f215f9b7224f49fb73256115331f677d868b34d18b65dbe4db392e6021eea90"
 
 [[package]]
 name = "either"

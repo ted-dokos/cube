@@ -15,6 +15,7 @@ use crate::constants::{MIN_TIME_PER_RENDER_FRAME, TIME_PER_GAME_TICK};
 use crate::game_state::{GameState, InputState};
 use crate::gpu_state::WebGPUState;
 
+use debug_print::debug_println;
 use pollster::block_on;
 use std::collections::VecDeque;
 use std::mem::{self};
@@ -35,7 +36,6 @@ use windows::{
 const EVENT_QUEUE_SIZE_IN_BYTES: i32 = std::mem::size_of::<*mut Arc<Mutex<EventQueue>>>() as i32;
 
 fn main() -> windows::core::Result<()> {
-    println!("Hello world!");
     let hinstance = unsafe { GetModuleHandleA(None) }?;
     let window_class_name = s!("window");
     let wc = WNDCLASSA {
@@ -309,7 +309,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
         unsafe { GetWindowLongPtrA(window, WINDOW_LONG_PTR_INDEX(EVENT_QUEUE_SIZE_IN_BYTES)) }
             as *mut Arc<Mutex<EventQueue>>;
     if gpu_queue_ptr.is_null() || input_queue_ptr.is_null() {
-        println!("Exiting wndproc early due to null event queues.");
+        debug_println!("Exiting wndproc early due to null event queues.");
         return unsafe { DefWindowProcA(window, message, wparam, lparam) };
     }
     match message {
