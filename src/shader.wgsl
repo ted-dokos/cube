@@ -1,24 +1,41 @@
-// Vertex shader
-struct InstanceInput {
-    @location(5) position: vec3<f32>,
-    @location(6) rotation: vec4<f32>,
-};
-
 struct CameraUniform {
     view_proj: mat4x4<f32>,
 };
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
 
+struct Light {
+    position: vec3<f32>,
+    color: vec3<f32>,
+}
+@group(2) @binding(0)
+var<uniform> light: Light;
+
+// Vertex shader
+struct InstanceInput {
+    @location(5) position: vec3<f32>,
+    @location(6) rotation: vec4<f32>,
+};
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
+    @location(2) normal: vec3<f32>,
+}
+struct NonmaterialVertexInput {
+    @location(0) position: vec3<f32>,
 }
 
 struct FragmentInput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) world_position: vec3<f32>,
 };
+
+struct NonmaterialFragmentInput {
+    @builtin(position) clip_position: vec4<f32>,
+}
 
 fn apply_rotor_to_vector(
     rotor: vec4<f32>,
@@ -41,15 +58,39 @@ fn apply_rotor_to_vector(
     return out;
 }
 
+fn calculate_world_position(
+    model_position: vec3<f32>,
+    instance: InstanceInput,
+) -> vec3<f32> {
+    return apply_rotor_to_vector(instance.rotation, model_position) + instance.position;
+}
+
+fn calculate_clip_position(
+    world_position: vec3<f32>
+) -> vec4<f32> {
+    return camera.view_proj * vec4<f32>(world_position, 1.0);
+}
 @vertex
 fn vs_main(
     model: VertexInput,
     instance: InstanceInput,
 ) -> FragmentInput {
-    var rotated: vec3<f32> = apply_rotor_to_vector(instance.rotation, model.position);
     var out: FragmentInput;
-    out.clip_position = camera.view_proj * vec4<f32>(rotated + instance.position, 1.0);
     out.tex_coords = model.tex_coords;
+    out.world_normal = apply_rotor_to_vector(instance.rotation, model.normal);
+    out.world_position = calculate_world_position(model.position, instance);
+    out.clip_position = calculate_clip_position(out.world_position);
+    return out;
+}
+@vertex
+fn nonmaterial_vs_main(
+    model: NonmaterialVertexInput,
+    instance: InstanceInput
+) -> NonmaterialFragmentInput {
+    let scale = 0.25;
+    var out: NonmaterialFragmentInput;
+    out.clip_position = calculate_clip_position(
+        calculate_world_position(scale * model.position + light.position, instance));
     return out;
 }
 
@@ -60,5 +101,18 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    return textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let ambient_strength = 0.1;
+    let ambient_color = light.color * ambient_strength;
+
+    let light_dir = normalize(light.position - in.world_position);
+    let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
+    let diffuse_color = light.color * diffuse_strength;
+
+    let result = (ambient_color + diffuse_color) * object_color.xyz;
+    return vec4<f32>(result, object_color.a);
+}
+@fragment
+fn nonmaterial_fs_main(in: NonmaterialFragmentInput) -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }

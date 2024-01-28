@@ -17,7 +17,7 @@ impl GameState {
             camera: Camera::new(
                 // position the camera 1 unit up and 2 units back
                 // +z is out of the screen
-                (0.0, 4.0, 8.0).into(),
+                (0.0, 5.0, 10.0).into(),
                 // have it look at the origin
                 (0.0, -1.0, -2.0).into(),
                 // which way is "up"
