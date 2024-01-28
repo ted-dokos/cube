@@ -7,6 +7,7 @@ mod camera;
 mod constants;
 mod game_state;
 mod gpu_state;
+mod light;
 mod model;
 mod resources;
 mod texture;
