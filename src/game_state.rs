@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use cgmath::Vector3;
+use cgmath::{num_traits::abs, InnerSpace, Rotation, Rotation3, Vector3};
 
 use crate::{camera::Camera, constants::TIME_PER_GAME_TICK};
 
@@ -66,10 +66,35 @@ impl GameState {
             delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
         }
         self.camera.move_eye(&delta_v, delta_t);
+        const ROTATION_MOVEMENT_DEG: f32 = 0.1;
+        let lateral_rot = cgmath::Quaternion::from_axis_angle(
+            cgmath::Vector3::unit_y(),
+            cgmath::Deg(-ROTATION_MOVEMENT_DEG * input.mouse_x as f32),
+        );
+        let vertical_rot = cgmath::Quaternion::from_axis_angle(
+            cgmath::Vector3::normalize(
+                [self.camera.direction.z, 0.0, -self.camera.direction.x].into(),
+            ),
+            cgmath::Deg(ROTATION_MOVEMENT_DEG * input.mouse_y as f32),
+        );
+        const CAMERA_PRECISION_EPS: f32 = 0.001;
+        let new_camera_direction = cgmath::Vector3::normalize(
+            lateral_rot.rotate_vector(vertical_rot.rotate_vector(self.camera.direction)),
+        );
+        if !(abs(cgmath::Vector3::dot(new_camera_direction, cgmath::Vector3::unit_y()))
+            > 1.0 - CAMERA_PRECISION_EPS)
+        {
+            self.camera.direction = new_camera_direction;
+        } else {
+            self.camera.direction =
+                cgmath::Vector3::normalize(lateral_rot.rotate_vector(self.camera.direction));
+        }
     }
 }
 
 pub struct InputState {
+    pub mouse_x: i32,
+    pub mouse_y: i32,
     pub forward: bool,
     pub backward: bool,
     pub left: bool,
@@ -78,6 +103,17 @@ pub struct InputState {
 
 impl InputState {
     pub fn new() -> Self {
-        InputState { forward: false, backward: false, left: false, right: false }
+        InputState {
+            mouse_x: 0,
+            mouse_y: 0,
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+        }
+    }
+    pub fn post_update_reset(&mut self) {
+        self.mouse_x = 0;
+        self.mouse_y = 0;
     }
 }
