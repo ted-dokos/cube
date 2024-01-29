@@ -74,17 +74,18 @@ impl GameState {
             ),
             cgmath::Deg(ROTATION_MOVEMENT_DEG * input.mouse_y as f32),
         );
-        const CAMERA_PRECISION_EPS: f32 = 0.001;
-        let new_camera_direction = cgmath::Vector3::normalize(
-            lateral_rot.rotate_vector(vertical_rot.rotate_vector(self.camera.direction)),
+        // Prevent the camera from getting too close to a vertical pole, while still allowing for lateral movement.
+        const POLAR_THRESHOLD: f32 = 0.001;
+        let new_vertical = cgmath::Vector3::normalize(vertical_rot.rotate_vector(self.camera.direction)
         );
-        if !(abs(cgmath::Vector3::dot(new_camera_direction, cgmath::Vector3::unit_y()))
-            > 1.0 - CAMERA_PRECISION_EPS)
+        if abs(cgmath::Vector3::dot(new_vertical, cgmath::Vector3::unit_y()))
+            > 1.0 - POLAR_THRESHOLD
         {
-            self.camera.direction = new_camera_direction;
-        } else {
             self.camera.direction =
                 cgmath::Vector3::normalize(lateral_rot.rotate_vector(self.camera.direction));
+        } else {
+            self.camera.direction = cgmath::Vector3::normalize(lateral_rot.rotate_vector(new_vertical));
+
         }
     }
 }
