@@ -89,7 +89,6 @@ fn nonmaterial_vs_main(
     model: NonmaterialVertexInput,
     instance: InstanceInput
 ) -> NonmaterialFragmentInput {
-    let scale = 0.25;
     var out: NonmaterialFragmentInput;
     out.clip_position = calculate_clip_position(
         calculate_world_position(instance.scale * model.position + light.position, instance));
