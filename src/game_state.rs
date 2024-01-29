@@ -62,7 +62,12 @@ impl GameState {
             // Neither or both are pressed, apply forward damping.
             delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
         }
+        delta_v += (0.0, delta_t * GRAVITY, 0.0).into();
         self.camera.move_eye(&delta_v, delta_t);
+        if self.camera.eye.y < -5.0 {
+            self.camera.eye.y = -5.0;
+            self.camera.velocity.y = 0.0;
+        }
         const ROTATION_MOVEMENT_DEG: f32 = 0.1;
         let lateral_rot = cgmath::Quaternion::from_axis_angle(
             cgmath::Vector3::unit_y(),
