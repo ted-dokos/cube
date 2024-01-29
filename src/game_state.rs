@@ -1,18 +1,57 @@
 use std::time::Instant;
 
-use cgmath::{num_traits::abs, InnerSpace, Rotation, Rotation3, Vector3};
+use cgmath::{num_traits::abs, InnerSpace, Rotation, Rotation3, Vector3, Zero};
 
-use crate::{camera::Camera, constants::TIME_PER_GAME_TICK};
+use crate::{camera::Camera, constants::{GRAVITY, TIME_PER_GAME_TICK}, gpu_state::InstanceRaw};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct GameState {
     camera: Camera,
     tick: isize,
     update_instant: Instant,
+    pub cube_instances: Vec<Instance>,
 }
 
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
+        const NUM_INSTANCES_PER_ROW: u32 = 10;
+        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+            0.0,
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+        );
+        const SPACE_BETWEEN: f32 = 3.0;
+        let mut instances = (0..NUM_INSTANCES_PER_ROW)
+            .flat_map(|z| {
+                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                    let position = (-SPACE_BETWEEN)
+                        * (cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
+                            - INSTANCE_DISPLACEMENT);
+
+                    let rotation = if position.is_zero() {
+                        // this is needed so an object at (0, 0, 0) won't get scaled to zero
+                        // as Quaternions can affect scale if they're not created correctly
+                        cgmath::Quaternion::from_axis_angle(
+                            cgmath::Vector3::unit_z(),
+                            cgmath::Deg(0.0),
+                        )
+                    } else {
+                        cgmath::Quaternion::from_axis_angle(
+                            position.normalize(),
+                            //cgmath::Deg(0.0),
+                            // cgmath::Deg(3.0 * ((x + 1) * (z + 1)) as f32),
+                            cgmath::Deg(45.0),
+                        )
+                    };
+                    Instance { position, scale: 1.0, rotation }
+                })
+            })
+            .collect::<Vec<_>>();
+        instances.push(Instance {
+            position: (0.0, -20.0, 0.0).into(),
+            scale: 11.0,
+            rotation: cgmath::Quaternion::<f32>::new(1.0, 0.0, 0.0, 0.0),
+        });
         GameState {
             camera: Camera::new(
                 // position the camera 1 unit up and 2 units back
@@ -29,6 +68,7 @@ impl GameState {
             ),
             tick: 0,
             update_instant: Instant::now(),
+            cube_instances: instances,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
@@ -62,7 +102,12 @@ impl GameState {
             // Neither or both are pressed, apply forward damping.
             delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
         }
+        delta_v += (0.0, delta_t * GRAVITY, 0.0).into();
         self.camera.move_eye(&delta_v, delta_t);
+        if self.camera.eye.y < -5.0 {
+            self.camera.eye.y = -5.0;
+            self.camera.velocity.y = 0.0;
+        }
         const ROTATION_MOVEMENT_DEG: f32 = 0.1;
         let lateral_rot = cgmath::Quaternion::from_axis_angle(
             cgmath::Vector3::unit_y(),
@@ -113,5 +158,28 @@ impl InputState {
     pub fn post_update_reset(&mut self) {
         self.mouse_x = 0;
         self.mouse_y = 0;
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Instance {
+    pub position: cgmath::Vector3<f32>,
+    pub scale: f32,
+    pub rotation: cgmath::Quaternion<f32>,
+}
+impl Instance {
+    pub fn to_raw(&self) -> InstanceRaw {
+        InstanceRaw {
+            model: [
+                self.position.x,
+                self.position.y,
+                self.position.z,
+                self.scale,
+                self.rotation.s,
+                -self.rotation.v.z,
+                -self.rotation.v.x,
+                -self.rotation.v.y,
+            ],
+        }
     }
 }

@@ -1,13 +1,9 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
-    camera::{Camera, CameraUniform},
-    light::LightUniform,
-    model::{self, DescribeVB, Material, Mesh, ModelVertex},
-    texture,
+    camera::{Camera, CameraUniform}, game_state::{GameState, Instance}, light::LightUniform, model::{self, DescribeVB, Material, Mesh, ModelVertex}, texture
 };
 
-use cgmath::{InnerSpace, Rotation3, Zero};
-use std::env;
+use cgmath::Rotation3;
 use std::ops::Range;
 use std::{
     ffi::c_void,
@@ -52,7 +48,7 @@ pub struct WebGPUState {
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
     nonmaterial_render_pipeline: wgpu::RenderPipeline,
-    instances: Vec<Instance>,
+    instances: Vec<InstanceRaw>,
     instance_buffer: wgpu::Buffer,
     nonmaterial_instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
@@ -67,7 +63,7 @@ pub struct WebGPUState {
     obj_model: model::Model,
 }
 impl WebGPUState {
-    pub async fn new(window: HWND, hinstance: HINSTANCE) -> Self {
+    pub async fn new(window: HWND, hinstance: HINSTANCE, game_state: GameState) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -278,40 +274,7 @@ impl WebGPUState {
             )
         };
 
-        const NUM_INSTANCES_PER_ROW: u32 = 10;
-        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
-            NUM_INSTANCES_PER_ROW as f32 * 0.5,
-            0.0,
-            NUM_INSTANCES_PER_ROW as f32 * 0.5,
-        );
-        const SPACE_BETWEEN: f32 = 3.0;
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = (-SPACE_BETWEEN)
-                        * (cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 }
-                            - INSTANCE_DISPLACEMENT);
-
-                    let rotation = if position.is_zero() {
-                        // this is needed so an object at (0, 0, 0) won't get scaled to zero
-                        // as Quaternions can affect scale if they're not created correctly
-                        cgmath::Quaternion::from_axis_angle(
-                            cgmath::Vector3::unit_z(),
-                            cgmath::Deg(0.0),
-                        )
-                    } else {
-                        cgmath::Quaternion::from_axis_angle(
-                            position.normalize(),
-                            //cgmath::Deg(0.0),
-                            // cgmath::Deg(3.0 * ((x + 1) * (z + 1)) as f32),
-                            cgmath::Deg(45.0),
-                        )
-                    };
-                    Instance { position, rotation }
-                })
-            })
-            .collect::<Vec<_>>();
-        let instances_raw = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instances_raw = game_state.cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instances_raw),
@@ -321,6 +284,7 @@ impl WebGPUState {
         nonmaterial_instances.push({
             let instance = Instance {
                 position: cgmath::Vector3::<f32>::new(0.0, 0.0, 0.0),
+                scale: 0.25,
                 rotation: cgmath::Quaternion::<f32>::new(1.0, 0.0, 0.0, 0.0),
             };
             instance.to_raw()
@@ -331,7 +295,6 @@ impl WebGPUState {
                 contents: bytemuck::cast_slice(&nonmaterial_instances),
                 usage: wgpu::BufferUsages::VERTEX,
             });
-        println!("{}", env::current_dir().unwrap().to_str().unwrap());
         let obj_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
             .await
             .unwrap();
@@ -343,7 +306,7 @@ impl WebGPUState {
             config,
             render_pipeline,
             nonmaterial_render_pipeline,
-            instances,
+            instances: instances_raw,
             instance_buffer,
             nonmaterial_instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
@@ -544,30 +507,10 @@ fn draw_nonmaterial_mesh_instanced<'a>(
 }
 
 // Data for the graphics pipeline.
-struct Instance {
-    position: cgmath::Vector3<f32>,
-    rotation: cgmath::Quaternion<f32>,
-}
-impl Instance {
-    fn to_raw(&self) -> InstanceRaw {
-        InstanceRaw {
-            model: [
-                self.position.x,
-                self.position.y,
-                self.position.z,
-                self.rotation.s,
-                -self.rotation.v.z,
-                -self.rotation.v.x,
-                -self.rotation.v.y,
-            ],
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct InstanceRaw {
-    model: [f32; 7],
+pub struct InstanceRaw {
+    pub model: [f32; 8],
 }
 impl InstanceRaw {
     fn get_vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
@@ -589,6 +532,11 @@ impl InstanceRaw {
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 6,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],

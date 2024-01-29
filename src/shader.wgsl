@@ -15,7 +15,8 @@ var<uniform> light: Light;
 // Vertex shader
 struct InstanceInput {
     @location(5) position: vec3<f32>,
-    @location(6) rotation: vec4<f32>,
+    @location(6) scale: f32,
+    @location(7) rotation: vec4<f32>,
 };
 
 struct VertexInput {
@@ -79,7 +80,7 @@ fn vs_main(
     var out: FragmentInput;
     out.tex_coords = model.tex_coords;
     out.world_normal = apply_rotor_to_vector(instance.rotation, model.normal);
-    out.world_position = calculate_world_position(model.position, instance);
+    out.world_position = calculate_world_position(instance.scale * model.position, instance);
     out.clip_position = calculate_clip_position(out.world_position);
     return out;
 }
@@ -88,10 +89,9 @@ fn nonmaterial_vs_main(
     model: NonmaterialVertexInput,
     instance: InstanceInput
 ) -> NonmaterialFragmentInput {
-    let scale = 0.25;
     var out: NonmaterialFragmentInput;
     out.clip_position = calculate_clip_position(
-        calculate_world_position(scale * model.position + light.position, instance));
+        calculate_world_position(instance.scale * model.position + light.position, instance));
     return out;
 }
 

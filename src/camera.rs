@@ -2,8 +2,8 @@ use cgmath::{Deg, Matrix4, Point3, Vector3};
 
 #[derive(Clone, Copy)]
 pub struct Camera {
-    eye: Point3<f32>, // position of the camera
-    velocity: Vector3<f32>,
+    pub eye: Point3<f32>, // position of the camera
+    pub velocity: Vector3<f32>,
     pub direction: Vector3<f32>,
     up: Vector3<f32>,
     aspect: f32,
@@ -34,9 +34,6 @@ impl Camera {
         self.velocity += *delta_v;
         self.eye += 0.5 * delta_t * self.velocity;
     }
-    // pub fn get_eye(&self) -> Point3<f32> {
-    //     self.eye
-    // }
     pub fn get_velocity(&self) -> Vector3<f32> {
         self.velocity
     }
