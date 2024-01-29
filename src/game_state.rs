@@ -41,26 +41,23 @@ impl GameState {
         self.tick += 1;
         self.update_instant = step_time;
         const ACCEL: f32 = 3.0;
-        const LATERAL_ACCEL: Vector3<f32> = Vector3::<f32>::new(ACCEL, 0.0, 0.0);
+        let lateral_accel = ACCEL * cgmath::Vector3::normalize([-self.camera.direction.z, 0.0, self.camera.direction.x].into());
         let delta_t = (*TIME_PER_GAME_TICK).as_secs_f32();
         let mut delta_v: Vector3<f32> = (0.0, 0.0, 0.0).into();
         let camera_vel = self.camera.get_velocity();
         if input.right && !input.left {
-            delta_v += delta_t * LATERAL_ACCEL;
-            //self.camera.move_eye(&lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
+            delta_v += delta_t * lateral_accel;
         } else if input.left && !input.right {
-            delta_v -= delta_t * LATERAL_ACCEL;
-            //self.camera.move_eye(&-lateral_velocity, (*TIME_PER_GAME_TICK).as_secs_f32());
+            delta_v -= delta_t * lateral_accel;
         } else {
             // Neither or both are pressed, apply lateral damping.
             delta_v += (-delta_t * camera_vel.x, 0.0, 0.0).into();
-            //self.camera.move_eye(&delta_v, (*TIME_PER_GAME_TICK).as_secs_f32());
         }
-        const FWD_ACCEL: Vector3<f32> = Vector3::<f32>::new(0.0, 0.0, -ACCEL);
+        let fwd_accel = ACCEL * cgmath::Vector3::normalize([self.camera.direction.x, 0.0, self.camera.direction.z].into());
         if input.forward && !input.backward {
-            delta_v += delta_t * FWD_ACCEL;
+            delta_v += delta_t * fwd_accel;
         } else if input.backward && !input.forward {
-            delta_v -= delta_t * FWD_ACCEL;
+            delta_v -= delta_t * fwd_accel;
         } else {
             // Neither or both are pressed, apply forward damping.
             delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
