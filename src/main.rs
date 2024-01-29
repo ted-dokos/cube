@@ -16,6 +16,7 @@ use crate::constants::{MIN_TIME_PER_RENDER_FRAME, TIME_PER_GAME_TICK};
 use crate::game_state::{GameState, InputState};
 use crate::gpu_state::WebGPUState;
 
+use cgmath::num_traits::abs;
 use debug_print::debug_println;
 use pollster::block_on;
 use std::collections::VecDeque;
@@ -23,7 +24,7 @@ use std::mem::{self};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self};
 use std::time::{Duration, Instant};
-use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LEFT, VK_RIGHT, VK_DOWN, VK_UP};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_DOWN, VK_LEFT, VK_RIGHT, VK_UP};
 use windows::Win32::{Foundation::POINT, System::LibraryLoader::GetModuleHandleA};
 use windows::{
     core::*,
@@ -40,7 +41,7 @@ fn main() -> windows::core::Result<()> {
     let hinstance = unsafe { GetModuleHandleA(None) }?;
     let window_class_name = s!("window");
     let wc = WNDCLASSA {
-        hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }?,
+        hCursor: unsafe { LoadCursorW(None, IDC_APPSTARTING) }?,
         hInstance: hinstance.into(),
         lpszClassName: window_class_name,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -51,16 +52,18 @@ fn main() -> windows::core::Result<()> {
     let atom = unsafe { RegisterClassA(&wc) };
     debug_assert!(atom != 0);
 
+    const WINDOW_INITIAL_WIDTH: i32 = 2560;
+    const WINDOW_INITIAL_HEIGHT: i32 = 1440;
     let window = unsafe {
         CreateWindowExA(
             WINDOW_EX_STYLE::default(),
             window_class_name,
             s!("My sample window"),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            WS_VISIBLE | WS_POPUP,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            500,
-            500,
+            WINDOW_INITIAL_WIDTH,
+            WINDOW_INITIAL_HEIGHT,
             None,
             None,
             hinstance,
@@ -90,12 +93,12 @@ fn main() -> windows::core::Result<()> {
     unsafe { windows::Win32::Media::timeBeginPeriod(1) };
 
     let mut gpu_state: WebGPUState = block_on(WebGPUState::new(window, hinstance.into()));
-    let mut game_state = GameState::new(1.0);
+    let mut game_state = GameState::new(WINDOW_INITIAL_WIDTH as f32 / WINDOW_INITIAL_HEIGHT as f32);
     let mut input_state = InputState::new();
     let (tx, rx) = mpsc::channel();
     macro_rules! printUnexpected {
         ($event_name:expr) => {
-            println!(
+            debug_println!(
                 "Unexpected occurrence: {} event was created with incorrect EventData",
                 $event_name
             );
@@ -164,7 +167,9 @@ fn main() -> windows::core::Result<()> {
                 } else {
                     let time_to_next_frame = last_render + *MIN_TIME_PER_RENDER_FRAME - next;
                     if time_to_next_frame > Duration::from_micros(1500) {
-                        thread::sleep(Duration::from_millis(time_to_next_frame.as_millis() as u64 - 1));
+                        thread::sleep(Duration::from_millis(
+                            time_to_next_frame.as_millis() as u64 - 1,
+                        ));
                     }
                 }
             }
@@ -173,8 +178,9 @@ fn main() -> windows::core::Result<()> {
     {
         let input_event_queue = Arc::clone(&input_event_queue);
         let _game_thread = thread::spawn(move || {
-            //assert!(thread_priority::set_current_thread_priority(ThreadPriority::Max).is_ok());
             let mut last_tick = Instant::now();
+            let mut game_rect: RECT = unsafe { mem::zeroed() };
+            let _ = unsafe { GetClientRect(window, &mut game_rect) };
             loop {
                 {
                     let mut queue = input_event_queue.lock().unwrap();
@@ -241,8 +247,28 @@ fn main() -> windows::core::Result<()> {
                                     printUnexpected!("WM_KEYUP");
                                 }
                             },
+                            WM_MOUSEMOVE => match event.data {
+                                EventData::MouseMoveData(pt) => {
+                                    let center_x = (game_rect.right + game_rect.left) / 2;
+                                    let center_y = (game_rect.bottom + game_rect.top) / 2;
+                                    let near_center_x = abs(pt.x - center_x)
+                                        < (game_rect.right - game_rect.left) / 4;
+                                    let near_center_y = abs(pt.y - center_y)
+                                        < (game_rect.bottom - game_rect.top) / 4;
+                                    if near_center_x && near_center_y {
+                                        input_state.mouse_x += pt.x - center_x;
+                                        input_state.mouse_y += pt.y - center_y;
+                                    } else  {
+                                        debug_println!("Howdy");
+                                    }
+                                }
+                                _ => {
+                                    printUnexpected!("WM_MOUSEMOVE");
+                                }
+                            },
                             WM_SIZE => match event.data {
                                 EventData::ResizeData(rect) => {
+                                    game_rect = rect;
                                     let width = rect.right - rect.left;
                                     let height = rect.bottom - rect.top;
                                     game_state.change_camera_aspect(width as f32 / height as f32);
@@ -265,6 +291,7 @@ fn main() -> windows::core::Result<()> {
                 while current_time - last_tick >= *TIME_PER_GAME_TICK {
                     last_tick = last_tick + *TIME_PER_GAME_TICK;
                     game_state.update(&input_state, last_tick);
+                    input_state.post_update_reset();
                 }
                 let _ = tx.send(game_state.clone());
 
@@ -351,10 +378,20 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             // println!("WM_MOUSEMOVE");
             let mut pt: POINT = unsafe { mem::zeroed() };
             let _ = unsafe { GetCursorPos(&mut pt) };
-            {
-                let mut queue = unsafe { (*gpu_queue_ptr).lock().unwrap() };
-                (*queue).push_back(WindowsEvent { message, data: EventData::MouseMoveData(pt) });
+
+            let mut gpu_queue = unsafe { (*gpu_queue_ptr).lock().unwrap() };
+            (*gpu_queue).push_back(WindowsEvent { message, data: EventData::MouseMoveData(pt) });
+            let mut input_queue = unsafe { (*input_queue_ptr).lock().unwrap() };
+            (*input_queue).push_back(WindowsEvent { message, data: EventData::MouseMoveData(pt) });
+
+            let mut rect: RECT = unsafe { mem::zeroed() };
+            let _ = unsafe { GetClientRect(window, &mut rect) };
+            let center_x = (rect.right + rect.left) / 2;
+            let center_y = (rect.bottom + rect.top) / 2;
+            unsafe {
+                let _ = SetCursorPos(center_x, center_y);
             }
+
             LRESULT(0)
         }
         WM_KEYDOWN => {
@@ -368,7 +405,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             LRESULT(0)
         }
         WM_KEYUP => {
-            println!("WM_KEYUP");
+            debug_println!("WM_KEYUP");
             {
                 let mut queue = unsafe { (*input_queue_ptr).lock().unwrap() };
                 (*queue).push_back(WindowsEvent {
@@ -378,6 +415,11 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             }
             LRESULT(0)
         }
+        WM_SETCURSOR => unsafe {
+            // debug_println!("WM_SETCURSOR");
+            SetCursor(HCURSOR { 0: 0 });
+            LRESULT(0)
+        },
         _ => unsafe { DefWindowProcA(window, message, wparam, lparam) },
     }
 }

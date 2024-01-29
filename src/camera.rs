@@ -4,7 +4,7 @@ use cgmath::{Deg, Matrix4, Point3, Vector3};
 pub struct Camera {
     eye: Point3<f32>, // position of the camera
     velocity: Vector3<f32>,
-    direction: Vector3<f32>,
+    pub direction: Vector3<f32>,
     up: Vector3<f32>,
     aspect: f32,
     fovy: f32,
