@@ -28,6 +28,8 @@ pub struct Mesh {
     pub index_buffer: Buffer,
     pub num_elements: u32,
     pub material: usize,
+    pub raw_vertices: Vec<ModelVertex>,
+    pub raw_indices: Vec<u32>,
 }
 pub trait DescribeVB {
     fn describe_vb() -> VertexBufferLayout<'static>;
@@ -140,6 +142,8 @@ pub async fn load_model(
                 index_buffer,
                 num_elements: m.mesh.indices.len() as u32,
                 material: m.mesh.material_id.unwrap_or(0),
+                raw_vertices: vertices,
+                raw_indices: m.mesh.indices.clone(),
             }
         })
         .collect::<Vec<_>>();
