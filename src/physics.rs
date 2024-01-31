@@ -1,10 +1,6 @@
 use cgmath::{InnerSpace, One, Point3, Quaternion, Vector3, Zero};
-use tobj::Model;
 
-use crate::{
-    constants::GRAVITY,
-    model::{Mesh, ModelVertex},
-};
+use crate::constants::GRAVITY;
 
 #[derive(Clone)]
 pub struct Physics {
@@ -56,9 +52,10 @@ pub struct Collision {
     pub vertices: Vec<Vector3<f32>>,
 }
 impl Collision {
-    pub fn new(vertices: Vec<Vector3<f32>>, indices: Vec<u32>) -> Self {
+    pub fn new(vertices: Vec<Vector3<f32>>, _indices: Vec<u32>) -> Self {
         Collision { vertices }
     }
+    #[allow(unused)]
     fn calculate_bounding_box(vertices: &Vec<Vector3<f32>>) -> (Vector3<f32>, Vector3<f32>) {
         if vertices.is_empty() {
             return (Vector3::zero(), Vector3::zero());
