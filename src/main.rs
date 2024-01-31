@@ -11,6 +11,7 @@ mod light;
 mod model;
 mod physics;
 mod resources;
+mod rotor;
 mod texture;
 
 use crate::constants::{MIN_TIME_PER_RENDER_FRAME, TIME_PER_GAME_TICK};

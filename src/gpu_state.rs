@@ -1,6 +1,6 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
-    camera::{Camera, CameraUniform}, game_state::{GameState, Instance}, light::LightUniform, model::{self, DescribeVB, Material, Mesh, ModelVertex}, texture
+    camera::{Camera, CameraUniform}, game_state::{GameState, Instance}, light::LightUniform, model::{self, DescribeVB, Material, Mesh, ModelVertex}, rotor::Rotor, texture
 };
 
 use cgmath::Rotation3;
@@ -285,7 +285,7 @@ impl WebGPUState {
             let instance = Instance {
                 position: cgmath::Vector3::<f32>::new(0.0, 0.0, 0.0),
                 scale: 0.25,
-                rotation: cgmath::Quaternion::<f32>::new(1.0, 0.0, 0.0, 0.0),
+                rotation: Rotor::identity(),
             };
             instance.to_raw()
         });
