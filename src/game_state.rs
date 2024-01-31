@@ -1,12 +1,13 @@
 use std::time::Instant;
 
-use cgmath::{num_traits::abs, InnerSpace, Point3, Rotation, Rotation3, Vector3, Zero};
+use cgmath::{num_traits::abs, InnerSpace, Vector3, Zero};
 
 use crate::{
     camera::Camera,
     constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK},
     gpu_state::InstanceRaw,
     physics::{Collision, Physics},
+    rotor::Rotor,
 };
 
 #[derive(Clone)]
@@ -43,12 +44,9 @@ impl GameState {
                     let rotation = if position.is_zero() {
                         // this is needed so an object at (0, 0, 0) won't get scaled to zero
                         // as Quaternions can affect scale if they're not created correctly
-                        cgmath::Quaternion::from_axis_angle(
-                            cgmath::Vector3::unit_z(),
-                            cgmath::Deg(0.0),
-                        )
+                        Rotor::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
                     } else {
-                        cgmath::Quaternion::from_axis_angle(
+                        Rotor::from_axis_angle(
                             position.normalize(),
                             //cgmath::Deg(0.0),
                             // cgmath::Deg(3.0 * ((x + 1) * (z + 1)) as f32),
@@ -62,7 +60,7 @@ impl GameState {
         instances.push(Instance {
             position: (0.0, -20.0, 0.0).into(),
             scale: 11.0,
-            rotation: cgmath::Quaternion::<f32>::new(1.0, 0.0, 0.0, 0.0),
+            rotation: Rotor::identity(),
         });
         let mut player_physics = Physics::new();
         player_physics.collision = Collision::new(
@@ -158,16 +156,18 @@ impl GameState {
         if self.player.physics.position.y < -5.0 {
             self.player.physics.position.y = -5.0;
             self.player.physics.velocity.y = 0.0;
+            // TODO: clearly the player update code should be responsible for moving the eye /
+            // center-of-mass in tandem.
             self.player.camera.eye =
                 self.player.physics.position + Vector3::new(0.0, CAMERA_PHYSICS_OFFSET, 0.0);
         }
 
         const ROTATION_MOVEMENT_DEG: f32 = 0.1;
-        let lateral_rot = cgmath::Quaternion::from_axis_angle(
+        let lateral_rot = Rotor::from_axis_angle(
             cgmath::Vector3::unit_y(),
             cgmath::Deg(-ROTATION_MOVEMENT_DEG * input.mouse_x as f32),
         );
-        let vertical_rot = cgmath::Quaternion::from_axis_angle(
+        let vertical_rot = Rotor::from_axis_angle(
             cgmath::Vector3::normalize(
                 [self.player.camera.direction.z, 0.0, -self.player.camera.direction.x].into(),
             ),
@@ -220,7 +220,7 @@ impl InputState {
 pub struct Instance {
     pub position: cgmath::Vector3<f32>,
     pub scale: f32,
-    pub rotation: cgmath::Quaternion<f32>,
+    pub rotation: Rotor,
 }
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
@@ -231,9 +231,9 @@ impl Instance {
                 self.position.z,
                 self.scale,
                 self.rotation.s,
-                -self.rotation.v.z,
-                -self.rotation.v.x,
-                -self.rotation.v.y,
+                self.rotation.xy,
+                self.rotation.xz,
+                self.rotation.yz,
             ],
         }
     }
