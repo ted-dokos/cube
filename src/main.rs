@@ -9,6 +9,7 @@ mod game_state;
 mod gpu_state;
 mod light;
 mod model;
+mod physics;
 mod resources;
 mod texture;
 
@@ -54,6 +55,8 @@ fn main() -> windows::core::Result<()> {
 
     const WINDOW_INITIAL_WIDTH: i32 = 2560;
     const WINDOW_INITIAL_HEIGHT: i32 = 1440;
+    // const WINDOW_INITIAL_WIDTH: i32 = 1920;
+    // const WINDOW_INITIAL_HEIGHT: i32 = 1080;
     let window = unsafe {
         CreateWindowExA(
             WINDOW_EX_STYLE::default(),

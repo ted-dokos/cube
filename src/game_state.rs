@@ -1,17 +1,29 @@
 use std::time::Instant;
 
-use cgmath::{num_traits::abs, InnerSpace, Rotation, Rotation3, Vector3, Zero};
+use cgmath::{num_traits::abs, InnerSpace, Point3, Rotation, Rotation3, Vector3, Zero};
 
-use crate::{camera::Camera, constants::{GRAVITY, TIME_PER_GAME_TICK}, gpu_state::InstanceRaw};
+use crate::{
+    camera::Camera,
+    constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK},
+    gpu_state::InstanceRaw,
+    physics::{Collision, Physics},
+};
+
+#[derive(Clone)]
+struct Player {
+    camera: Camera,
+    physics: Physics,
+}
+
+const CAMERA_PHYSICS_OFFSET: f32 = 0.4;
 
 #[derive(Clone)]
 pub struct GameState {
-    camera: Camera,
+    player: Player,
     tick: isize,
     update_instant: Instant,
     pub cube_instances: Vec<Instance>,
 }
-
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
         const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -52,62 +64,104 @@ impl GameState {
             scale: 11.0,
             rotation: cgmath::Quaternion::<f32>::new(1.0, 0.0, 0.0, 0.0),
         });
+        let mut player_physics = Physics::new();
+        player_physics.collision = Collision::new(
+            [
+                Vector3::new(0.125, 0.125, 0.5),
+                Vector3::new(-0.125, 0.125, 0.5),
+                Vector3::new(0.125, -0.125, 0.5),
+                Vector3::new(-0.125, -0.125, 0.5),
+                Vector3::new(0.125, 0.125, -0.5),
+                Vector3::new(-0.125, 0.125, -0.5),
+                Vector3::new(0.125, -0.125, -0.5),
+                Vector3::new(-0.125, -0.125, -0.5),
+            ]
+            .into(),
+            [].into(),
+        );
+        const CAMERA_EYE_Y: f32 = 5.0;
+        player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
-            camera: Camera::new(
-                // position the camera 1 unit up and 2 units back
-                // +z is out of the screen
-                (0.0, 5.0, 10.0).into(),
-                // have it look at the origin
-                (0.0, -1.0, -2.0).into(),
-                // which way is "up"
-                Vector3::unit_y(),
-                aspect_ratio,
-                45.0,
-                0.1,
-                100.0,
-            ),
+            player: Player {
+                camera: Camera::new(
+                    // position the camera 1 unit up and 2 units back
+                    // +z is out of the screen
+                    (0.0, CAMERA_EYE_Y, 10.0).into(),
+                    // have it look at the origin
+                    (0.0, -1.0, -2.0).into(),
+                    // which way is "up"
+                    Vector3::unit_y(),
+                    aspect_ratio,
+                    45.0,
+                    0.1,
+                    100.0,
+                ),
+                physics: player_physics,
+            },
             tick: 0,
             update_instant: Instant::now(),
             cube_instances: instances,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
-        self.camera.set_aspect(aspect_ratio);
+        self.player.camera.set_aspect(aspect_ratio);
     }
     pub fn get_camera(&self) -> Camera {
-        self.camera
+        self.player.camera
     }
     pub fn update(&mut self, input: &InputState, step_time: Instant) {
         self.tick += 1;
         self.update_instant = step_time;
-        const ACCEL: f32 = 3.0;
-        let lateral_accel = ACCEL * cgmath::Vector3::normalize([-self.camera.direction.z, 0.0, self.camera.direction.x].into());
+        self.player.physics.accel = (0.0, GRAVITY, 0.0).into();
+        let lateral_force = PLAYER_FORCE
+            * cgmath::Vector3::normalize(
+                [-self.player.camera.direction.z, 0.0, self.player.camera.direction.x].into(),
+            );
+
         let delta_t = (*TIME_PER_GAME_TICK).as_secs_f32();
-        let mut delta_v: Vector3<f32> = (0.0, 0.0, 0.0).into();
-        let camera_vel = self.camera.get_velocity();
         if input.right && !input.left {
-            delta_v += delta_t * lateral_accel;
+            self.player.physics.apply_force(lateral_force);
         } else if input.left && !input.right {
-            delta_v -= delta_t * lateral_accel;
+            self.player.physics.apply_force(-lateral_force);
         } else {
             // Neither or both are pressed, apply lateral damping.
-            delta_v += (-delta_t * camera_vel.x, 0.0, 0.0).into();
+            self.player.physics.apply_force(
+                -Vector3::dot(
+                    self.player.physics.mass * self.player.physics.velocity,
+                    lateral_force / PLAYER_FORCE,
+                ) * (lateral_force / PLAYER_FORCE)
+                    * (1.0 / (10.0 * delta_t)),
+            );
         }
-        let fwd_accel = ACCEL * cgmath::Vector3::normalize([self.camera.direction.x, 0.0, self.camera.direction.z].into());
+        let fwd_force = PLAYER_FORCE
+            * cgmath::Vector3::normalize(
+                [self.player.camera.direction.x, 0.0, self.player.camera.direction.z].into(),
+            );
+
+        // TODO: this acts terribly if you quickly switch between left/right or fwd/back
         if input.forward && !input.backward {
-            delta_v += delta_t * fwd_accel;
+            self.player.physics.apply_force(fwd_force);
         } else if input.backward && !input.forward {
-            delta_v -= delta_t * fwd_accel;
+            self.player.physics.apply_force(-fwd_force);
         } else {
             // Neither or both are pressed, apply forward damping.
-            delta_v += (0.0, 0.0, -delta_t * camera_vel.z).into();
+            self.player.physics.apply_force(
+                -Vector3::dot(
+                    self.player.physics.mass * self.player.physics.velocity,
+                    fwd_force / PLAYER_FORCE,
+                ) * (fwd_force / PLAYER_FORCE)
+                    * (1.0 / (10.0 * delta_t)),
+            );
         }
-        delta_v += (0.0, delta_t * GRAVITY, 0.0).into();
-        self.camera.move_eye(&delta_v, delta_t);
-        if self.camera.eye.y < -5.0 {
-            self.camera.eye.y = -5.0;
-            self.camera.velocity.y = 0.0;
+        let delta_pos = self.player.physics.update(delta_t, 10.0);
+        self.player.camera.eye += delta_pos;
+        if self.player.physics.position.y < -5.0 {
+            self.player.physics.position.y = -5.0;
+            self.player.physics.velocity.y = 0.0;
+            self.player.camera.eye =
+                self.player.physics.position + Vector3::new(0.0, CAMERA_PHYSICS_OFFSET, 0.0);
         }
+
         const ROTATION_MOVEMENT_DEG: f32 = 0.1;
         let lateral_rot = cgmath::Quaternion::from_axis_angle(
             cgmath::Vector3::unit_y(),
@@ -115,22 +169,23 @@ impl GameState {
         );
         let vertical_rot = cgmath::Quaternion::from_axis_angle(
             cgmath::Vector3::normalize(
-                [self.camera.direction.z, 0.0, -self.camera.direction.x].into(),
+                [self.player.camera.direction.z, 0.0, -self.player.camera.direction.x].into(),
             ),
             cgmath::Deg(ROTATION_MOVEMENT_DEG * input.mouse_y as f32),
         );
-        // Prevent the camera from getting too close to a vertical pole, while still allowing for lateral movement.
+        // Prevent the camera from getting too close to a vertical pole, while still allowing for
+        // lateral movement.
         const POLAR_THRESHOLD: f32 = 0.001;
-        let new_vertical = cgmath::Vector3::normalize(vertical_rot.rotate_vector(self.camera.direction)
-        );
+        let new_vertical =
+            cgmath::Vector3::normalize(vertical_rot.rotate_vector(self.player.camera.direction));
         if abs(cgmath::Vector3::dot(new_vertical, cgmath::Vector3::unit_y()))
             > 1.0 - POLAR_THRESHOLD
         {
-            self.camera.direction =
-                cgmath::Vector3::normalize(lateral_rot.rotate_vector(self.camera.direction));
+            self.player.camera.direction =
+                cgmath::Vector3::normalize(lateral_rot.rotate_vector(self.player.camera.direction));
         } else {
-            self.camera.direction = cgmath::Vector3::normalize(lateral_rot.rotate_vector(new_vertical));
-
+            self.player.camera.direction =
+                cgmath::Vector3::normalize(lateral_rot.rotate_vector(new_vertical));
         }
     }
 }
