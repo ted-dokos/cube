@@ -1,6 +1,7 @@
 - Figure out what's going on with KF_REPEAT, or just ignore it.
 - Work on interpolation of frames.
 - The horizontal movement damping is wrong.
+- Make rotor code in shader use xy, xz, yz basis instead of xy, yz, zx.
 
 - DONE: Experiment with FPS caps in the gpu thread. When does the GPU start to chug from too many render calls?
 -- Answer: my frame cap somehow prevents this from happening. At a certain point I hit ~1800 FPS and it would go no higher, despite me amping up the frame limit.
