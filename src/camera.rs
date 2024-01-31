@@ -30,13 +30,6 @@ impl Camera {
 
         return OPENGL_TO_WGPU_MATRIX * proj * view;
     }
-    pub fn move_eye(&mut self, delta_v: &Vector3<f32>, delta_t: f32) {
-        self.velocity += *delta_v;
-        self.eye += 0.5 * delta_t * self.velocity;
-    }
-    pub fn get_velocity(&self) -> Vector3<f32> {
-        self.velocity
-    }
     pub fn set_aspect(&mut self, aspect: f32) {
         self.aspect = aspect;
     }
