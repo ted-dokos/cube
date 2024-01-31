@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use cgmath::{num_traits::abs, InnerSpace, Point3, Rotation, Rotation3, Vector3, Zero};
+use cgmath::{num_traits::abs, InnerSpace, Vector3, Zero};
 
 use crate::{
     camera::Camera,
@@ -232,8 +232,8 @@ impl Instance {
                 self.scale,
                 self.rotation.s,
                 self.rotation.xy,
+                self.rotation.xz,
                 self.rotation.yz,
-                -self.rotation.xz,
             ],
         }
     }

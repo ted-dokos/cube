@@ -9,6 +9,7 @@ pub struct Rotor {
     pub yz: f32,
 }
 impl Rotor {
+    #[allow(unused)]
     pub fn new(s: f32, xy: f32, xz: f32, yz: f32) -> Self {
         Rotor { s, xy, xz, yz }
     }
@@ -24,6 +25,7 @@ impl Rotor {
     pub fn identity() -> Rotor {
         Rotor { s: 1.0, xy: 0.0, xz: 0.0, yz: 0.0 }
     }
+    #[allow(unused)]
     pub fn inverse(&self) -> Rotor {
         Rotor { s: self.s, xy: -self.xy, xz: -self.xz, yz: -self.yz }
     }
