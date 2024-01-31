@@ -163,11 +163,11 @@ impl GameState {
         }
 
         const ROTATION_MOVEMENT_DEG: f32 = 0.1;
-        let lateral_rot = cgmath::Quaternion::from_axis_angle(
+        let lateral_rot = Rotor::from_axis_angle(
             cgmath::Vector3::unit_y(),
             cgmath::Deg(-ROTATION_MOVEMENT_DEG * input.mouse_x as f32),
         );
-        let vertical_rot = cgmath::Quaternion::from_axis_angle(
+        let vertical_rot = Rotor::from_axis_angle(
             cgmath::Vector3::normalize(
                 [self.player.camera.direction.z, 0.0, -self.player.camera.direction.x].into(),
             ),
