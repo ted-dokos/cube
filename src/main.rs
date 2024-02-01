@@ -222,7 +222,6 @@ fn main() -> windows::core::Result<()> {
                                             input_state.backward = true;
                                         }
                                         VK_SPACE => {
-                                            println!("hi");
                                             input_state.jump = true;
                                         }
                                         _ => {}
