@@ -26,7 +26,7 @@ use std::mem::{self};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self};
 use std::time::{Duration, Instant};
-use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_DOWN, VK_LEFT, VK_RIGHT, VK_UP};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_DOWN, VK_LEFT, VK_RIGHT, VK_SPACE, VK_UP};
 use windows::Win32::{Foundation::POINT, System::LibraryLoader::GetModuleHandleA};
 use windows::{
     core::*,
@@ -220,6 +220,10 @@ fn main() -> windows::core::Result<()> {
                                         }
                                         VK_DOWN => {
                                             input_state.backward = true;
+                                        }
+                                        VK_SPACE => {
+                                            println!("hi");
+                                            input_state.jump = true;
                                         }
                                         _ => {}
                                     }

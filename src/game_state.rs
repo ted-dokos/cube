@@ -151,6 +151,9 @@ impl GameState {
                     * (1.0 / (10.0 * delta_t)),
             );
         }
+        if input.jump && self.player.physics.position.y <= -4.999 {
+            self.player.physics.velocity += (0.0, 5.0, 0.0).into();
+        }
         let delta_pos = self.player.physics.update(delta_t, 10.0);
         self.player.camera.eye += delta_pos;
         if self.player.physics.position.y < -5.0 {
@@ -197,6 +200,7 @@ pub struct InputState {
     pub backward: bool,
     pub left: bool,
     pub right: bool,
+    pub jump: bool,
 }
 
 impl InputState {
@@ -208,11 +212,13 @@ impl InputState {
             backward: false,
             left: false,
             right: false,
+            jump: false,
         }
     }
     pub fn post_update_reset(&mut self) {
         self.mouse_x = 0;
         self.mouse_y = 0;
+        self.jump = false;
     }
 }
 
