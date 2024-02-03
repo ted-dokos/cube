@@ -24,6 +24,7 @@ pub struct GameState {
     tick: isize,
     update_instant: Instant,
     pub cube_instances: Vec<Instance>,
+    pub pulse_instances: Vec<Instance>,
 }
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
@@ -77,6 +78,11 @@ impl GameState {
             .into(),
             [].into(),
         );
+        let pulse_instances = vec![Instance {
+            position: (0.0, -4.5, 0.0).into(),
+            scale: 0.5,
+            rotation: Rotor::identity(),
+        }];
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
@@ -99,6 +105,7 @@ impl GameState {
             tick: 0,
             update_instant: Instant::now(),
             cube_instances: instances,
+            pulse_instances,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
