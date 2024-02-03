@@ -104,55 +104,57 @@ struct FragmentInput {
     @location(2) world_position: vec3<f32>,
     @location(3) shader: u32,
 };
+struct LightingOutput {
+    ambient_color: vec3<f32>,
+    diffuse_color: vec3<f32>,
+    specular_color: vec3<f32>,
+}
 
 @group(0) @binding(0)
 var t_diffuse: texture_2d<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
-@fragment
-fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    switch in.shader {
-        case 2u: { return fs_pulse(in); }
-        case 3u: { return fs_ripple(in); }
-        default: { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
-    }
-}
-fn fs_pulse(in: FragmentInput) -> vec4<f32> {
-    var object_color: vec4<f32> = vec4<f32>(0.03, 0.03, 0.03, 1.0);
-    object_color.x += 0.9 * (cos(time.secs * 2.0) + 1.0) / 2.0;
+
+fn calculate_lighting(in: FragmentInput) -> LightingOutput {
+    var out: LightingOutput;
     let ambient_strength = 0.2;
-    let ambient_color = light.color * ambient_strength;
+    out.ambient_color = light.color * ambient_strength;
 
     let light_dir = normalize(light.position - in.world_position);
     let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
-    let diffuse_color = light.color * diffuse_strength;
+    out.diffuse_color = light.color * diffuse_strength;
 
     let view_dir = normalize(camera.view_pos - in.world_position);
     let half_dir = normalize(view_dir + light_dir);
     let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
-    let specular_color = light.color * specular_strength;
+    out.specular_color = light.color * specular_strength;
 
-    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
-    return vec4<f32>(result, object_color.a);
+    return out;
+}
+
+@fragment
+fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    var unlit: vec4<f32>;
+    switch in.shader {
+        case 2u: { unlit = fs_pulse(in); }
+        case 3u: { unlit = fs_ripple(in); }
+        default: { unlit = vec4<f32>(0.0, 0.0, 0.0, 1.0); }
+    }
+    let light = calculate_lighting(in);
+    let result = (light.ambient_color + light.diffuse_color + light.specular_color) * unlit.xyz;
+    return vec4<f32>(result, unlit.a);
+}
+fn fs_pulse(in: FragmentInput) -> vec4<f32> {
+    var object_color: vec4<f32> = vec4<f32>(0.03, 0.03, 0.03, 1.0);
+    object_color.x += 0.9 * (cos(time.secs * 2.0) + 1.0) / 2.0;
+    return object_color;
 }
 fn fs_ripple(in: FragmentInput) -> vec4<f32> {
     var object_color: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let uv = in.tex_coords;
     let radius = length(uv);
-    let color_str = (cos(3.0* time.secs + radius*100.0) + 1.0) / 2.0;
+    let color_str = pow((cos(radius*20.0 - 4.0* time.secs) + 1.0) / 2.0, 2.0);
+
     object_color += vec4<f32>(color_str, color_str, color_str, 0.0);
-    let ambient_strength = 0.2;
-    let ambient_color = light.color * ambient_strength;
-
-    let light_dir = normalize(light.position - in.world_position);
-    let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
-    let diffuse_color = light.color * diffuse_strength;
-
-    let view_dir = normalize(camera.view_pos - in.world_position);
-    let half_dir = normalize(view_dir + light_dir);
-    let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
-    let specular_color = light.color * specular_strength;
-
-    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
-    return vec4<f32>(result, object_color.a);
+    return object_color;
 }

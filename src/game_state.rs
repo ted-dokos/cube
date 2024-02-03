@@ -24,7 +24,7 @@ pub struct GameState {
     tick: isize,
     update_instant: Instant,
     pub cube_instances: Vec<Instance>,
-    pub pulse_instances: Vec<Instance>,
+    pub simple_cube_instances: Vec<Instance>,
 }
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
@@ -54,7 +54,7 @@ impl GameState {
                             cgmath::Deg(45.0),
                         )
                     };
-                    Instance { position, scale: 1.0, rotation, shader: Shader::TEXTURE }
+                    Instance { position, scale: 1.0, rotation, shader: Shader::Texture }
                 })
             })
             .collect::<Vec<_>>();
@@ -62,7 +62,7 @@ impl GameState {
             position: (0.0, -20.0, 0.0).into(),
             scale: 11.0,
             rotation: Rotor::identity(),
-            shader: Shader::TEXTURE,
+            shader: Shader::Texture,
         });
         let mut player_physics = Physics::new();
         player_physics.collision = Collision::new(
@@ -79,18 +79,18 @@ impl GameState {
             .into(),
             [].into(),
         );
-        let pulse_instances = vec![
+        let simple_cube_instances = vec![
             Instance {
                 position: (0.0, -4.5, 0.0).into(),
                 scale: 0.5,
                 rotation: Rotor::identity(),
-                shader: Shader::PULSE,
+                shader: Shader::Pulse,
             },
             Instance {
                 position: (3.0, -4.5, 0.0).into(),
                 scale: 0.5,
                 rotation: Rotor::identity(),
-                shader: Shader::RIPPLE,
+                shader: Shader::Ripple,
             },
         ];
         const CAMERA_EYE_Y: f32 = 5.0;
@@ -115,7 +115,7 @@ impl GameState {
             tick: 0,
             update_instant: Instant::now(),
             cube_instances: instances,
-            pulse_instances,
+            simple_cube_instances,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
@@ -242,10 +242,10 @@ impl InputState {
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub enum Shader {
-    TEXTURE = 0,
-    NON_MATERIAL = 1,
-    PULSE = 2,
-    RIPPLE = 3,
+    Texture = 0,
+    NonMaterial = 1,
+    Pulse = 2,
+    Ripple = 3,
 }
 
 #[derive(Clone, Copy)]

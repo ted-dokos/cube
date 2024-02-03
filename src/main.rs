@@ -160,7 +160,7 @@ fn main() -> windows::core::Result<()> {
                     gpu_state.update_camera(game_state.get_camera());
                 }
                 if Instant::now() >= last_fps_print + Duration::from_secs(2) {
-                    println!("FPS = {}", frames as f32 / 2.0);
+                    debug_println!("FPS = {}", frames as f32 / 2.0);
                     frames = 0;
                     last_fps_print = Instant::now();
                 }
@@ -267,7 +267,7 @@ fn main() -> windows::core::Result<()> {
                                         input_state.mouse_x += pt.x - center_x;
                                         input_state.mouse_y += pt.y - center_y;
                                     } else  {
-                                        debug_println!("Howdy");
+                                        debug_println!("Detected mouse outside of central box. Mouse entering window for first time?");
                                     }
                                 }
                                 _ => {
@@ -350,7 +350,7 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
     }
     match message {
         WM_PAINT => {
-            println!("WM_PAINT");
+            debug_println!("WM_PAINT");
             {
                 let mut queue = unsafe { (*gpu_queue_ptr).lock().unwrap() };
                 (*queue).push_back(WindowsEvent { message, data: EventData::EmptyData() });
@@ -359,12 +359,12 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             LRESULT(0)
         }
         WM_DESTROY => {
-            println!("WM_DESTROY");
+            debug_println!("WM_DESTROY");
             unsafe { PostQuitMessage(0) };
             LRESULT(0)
         }
         WM_SIZE => {
-            println!("WM_SIZE");
+            debug_println!("WM_SIZE");
             let mut rect: RECT = unsafe { mem::zeroed() };
             let _ = unsafe { GetClientRect(window, &mut rect) };
             let event = WindowsEvent { message, data: EventData::ResizeData(rect) };
@@ -379,11 +379,11 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             LRESULT(0)
         }
         WM_MOUSEACTIVATE => {
-            println!("WM_MOUSEACTIVATE");
+            debug_println!("WM_MOUSEACTIVATE");
             LRESULT(0)
         }
         WM_MOUSEMOVE => {
-            // println!("WM_MOUSEMOVE");
+            // debug_println!("WM_MOUSEMOVE");
             let mut pt: POINT = unsafe { mem::zeroed() };
             let _ = unsafe { GetCursorPos(&mut pt) };
 
