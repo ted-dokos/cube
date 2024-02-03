@@ -55,6 +55,10 @@ pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
 }
 impl CameraUniform {
+    pub fn update_view_proj(&mut self, camera: &Camera) {
+        self.view_position = camera.eye.into();
+        self.view_proj = camera.build_view_projection_matrix().into();
+    }
     pub fn new() -> Self {
         use cgmath::SquareMatrix;
         Self {
@@ -62,9 +66,9 @@ impl CameraUniform {
             _padding: 0.0,
             view_proj: cgmath::Matrix4::identity().into() }
     }
-
-    pub fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_position = camera.eye.into();
-        self.view_proj = camera.build_view_projection_matrix().into();
+    pub fn from_camera(camera: &Camera) -> Self {
+        let mut uniform = CameraUniform::new();
+        uniform.update_view_proj(&camera);
+        return uniform;
     }
 }

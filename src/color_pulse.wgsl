@@ -12,11 +12,11 @@ struct Light {
 @group(2) @binding(0)
 var<uniform> light: Light;
 
-// struct Time {
-//     time: f32,
-// }
+struct Time {
+    secs: f32,
+}
 @group(3) @binding(0)
-var<uniform> time: f32;
+var<uniform> time: Time;
 
 // Vertex shader
 struct InstanceInput {
@@ -109,7 +109,7 @@ var s_diffuse: sampler;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var object_color: vec4<f32> = vec4<f32>(0.03, 0.03, 0.03, 1.0);
-    object_color.x += 0.9 * (cos(time * 2.0) + 1.0) / 2.0;
+    object_color.x += 0.9 * (cos(time.secs * 2.0) + 1.0) / 2.0;
     let ambient_strength = 0.2;
     let ambient_color = light.color * ambient_strength;
 
