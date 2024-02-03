@@ -1,15 +1,21 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
-    camera::{Camera, CameraUniform}, game_state::{GameState, Instance}, light::LightUniform, model::{self, DescribeVB, Material, Mesh, ModelVertex}, rotor::Rotor, texture
+    camera::{Camera, CameraUniform},
+    game_state::{GameState, Instance},
+    light::LightUniform,
+    model::{self, DescribeVB, Material, Mesh, ModelVertex},
+    rotor::Rotor,
+    texture,
+    time::TimeUniform,
 };
 
 use cgmath::Rotation3;
-use std::ops::Range;
 use std::{
     ffi::c_void,
     mem::{self},
     result::Result,
 };
+use std::{ops::Range, time::Instant};
 use wgpu::util::DeviceExt;
 use windows::Win32::Foundation::POINT;
 use windows::Win32::{
@@ -48,18 +54,17 @@ pub struct WebGPUState {
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
     nonmaterial_render_pipeline: wgpu::RenderPipeline,
+    pulse_render_pipeline: wgpu::RenderPipeline,
     instances: Vec<InstanceRaw>,
     instance_buffer: wgpu::Buffer,
     nonmaterial_instance_buffer: wgpu::Buffer,
+    pulse_instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
     depth_texture: texture::Texture,
-    camera: Camera,
-    camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
-    light_uniform: LightUniform,
-    light_buffer: wgpu::Buffer,
-    light_bind_group: wgpu::BindGroup,
+    camera_group: BindGroupData<CameraUniform>,
+    light_group: BindGroupData<LightUniform>,
+    start_time: Instant,
+    time_group: BindGroupData<TimeUniform>,
     obj_model: model::Model,
 }
 impl WebGPUState {
@@ -109,7 +114,7 @@ impl WebGPUState {
             width,
             height,
             present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
+            alpha_mode: surface_caps.alpha_modes[0], // TODO: how to get Pre/Postmultiplied in here?
             view_formats: vec![],
         };
         surface.configure(&device, &config);
@@ -138,93 +143,45 @@ impl WebGPUState {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-
-        let camera = Camera::new(
-            // position the camera 1 unit up and 2 units back
-            // +z is out of the screen
-            (0.0, 1.0, 2.0).into(),
-            // have it look at the origin
-            (0.0, -1.0, -2.0).into(),
-            // which way is "up"
-            cgmath::Vector3::unit_y(),
-            config.width as f32 / config.height as f32,
-            45.0,
-            0.1,
-            100.0,
-        );
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
         let depth_texture = texture::create_depth_texture(&device, &config, "depth_texture");
 
-        let light_uniform = LightUniform {
-            position: [2.0, 2.0, 2.0],
-            _padding: 0,
-            color: [1.0, 1.0, 1.0],
-            _padding2: 0,
-        };
-        let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Light VB"),
-            contents: bytemuck::cast_slice(&[light_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: None,
-            });
-        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &light_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: light_buffer.as_entire_binding(),
-            }],
-            label: None,
-        });
+        let camera_group = BindGroupData::<CameraUniform>::new(
+            CameraUniform::from_camera(&game_state.get_camera()),
+            &device,
+            "Camera",
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+        );
+
+        let start_time = Instant::now();
+        let time_group = BindGroupData::<TimeUniform>::new(
+            TimeUniform::new(0.0),
+            &device,
+            "Time",
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+        );
+
+        let light_group = BindGroupData::<LightUniform>::new(
+            LightUniform {
+                position: [2.0, 2.0, 2.0],
+                _padding: 0,
+                color: [1.0, 1.0, 1.0],
+                _padding2: 0,
+            },
+            &device,
+            "Light",
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            wgpu::ShaderStages::VERTEX_FRAGMENT,
+        );
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
-                    &camera_bind_group_layout,
-                    &light_bind_group_layout,
+                    &camera_group.layout,
+                    &light_group.layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -246,14 +203,40 @@ impl WebGPUState {
                 "fs_main",
             )
         };
-
+        let pulse_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Color Pulse Pipeline Layout"),
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &camera_group.layout,
+                    &light_group.layout,
+                    &time_group.layout,
+                ],
+                push_constant_ranges: &[],
+            });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Color Pulse Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("color_pulse.wgsl").into()),
+            };
+            create_render_pipeline(
+                "Color Pulse Render Pipeline",
+                &device,
+                &layout,
+                config.format,
+                Some(texture::DEPTH_FORMAT),
+                &[ModelVertex::describe_vb(), InstanceRaw::get_vertex_buffer_layout()],
+                shader,
+                "vs_main",
+                "fs_main",
+            )
+        };
         let nonmaterial_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Nonmaterial Pipeline Layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
-                    &camera_bind_group_layout,
-                    &light_bind_group_layout,
+                    &camera_group.layout,
+                    &light_group.layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -274,7 +257,8 @@ impl WebGPUState {
             )
         };
 
-        let instances_raw = game_state.cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instances_raw =
+            game_state.cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instances_raw),
@@ -295,6 +279,14 @@ impl WebGPUState {
                 contents: bytemuck::cast_slice(&nonmaterial_instances),
                 usage: wgpu::BufferUsages::VERTEX,
             });
+        let pulse_instances =
+            game_state.pulse_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let pulse_instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Color Pulse Instance Buffer"),
+            contents: bytemuck::cast_slice(&pulse_instances),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         let obj_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
             .await
             .unwrap();
@@ -306,18 +298,17 @@ impl WebGPUState {
             config,
             render_pipeline,
             nonmaterial_render_pipeline,
+            pulse_render_pipeline,
             instances: instances_raw,
             instance_buffer,
             nonmaterial_instance_buffer,
+            pulse_instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             depth_texture,
-            camera,
-            camera_uniform,
-            camera_buffer,
-            camera_bind_group,
-            light_uniform,
-            light_buffer,
-            light_bind_group,
+            camera_group,
+            light_group,
+            start_time,
+            time_group,
             obj_model,
         }
     }
@@ -343,12 +334,11 @@ impl WebGPUState {
         // let _ = self.render();
     }
     pub fn update_camera(&mut self, camera: Camera) {
-        self.camera = camera;
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera_group.uniform.update_view_proj(&camera);
         self.queue.write_buffer(
-            &self.camera_buffer,
+            &self.camera_group.buffer,
             0,
-            bytemuck::cast_slice(&[self.camera_uniform]),
+            bytemuck::cast_slice(&[self.camera_group.uniform]),
         );
         // Not necessary anymore: new model is we repeatedly call render in a loop.
         // let _ = self.render();
@@ -385,8 +375,8 @@ impl WebGPUState {
 
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.light_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
+            render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
 
             let mesh = &self.obj_model.meshes[0];
             let material = &self.obj_model.materials[mesh.material];
@@ -396,9 +386,18 @@ impl WebGPUState {
 
             render_pass.set_vertex_buffer(1, self.nonmaterial_instance_buffer.slice(..));
 
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.light_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
+            render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
             draw_nonmaterial_mesh_instanced(&mut render_pass, mesh, 0..1);
+
+            render_pass.set_pipeline(&self.pulse_render_pipeline);
+            render_pass.set_vertex_buffer(1, self.pulse_instance_buffer.slice(..));
+            render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
+            render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
+            render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
+            let time = (Instant::now() - self.start_time).as_secs_f32();
+            self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
+            draw_mesh_instanced(&mut render_pass, mesh, material, 0..1);
         }
 
         // submit will accept anything that implements IntoIter
@@ -407,12 +406,16 @@ impl WebGPUState {
 
         // BAD CODE ALERT: update the light's position each frame. I need to move this into the game
         // state. I'm just lazy right now.
-        let old_position: cgmath::Vector3<_> = self.light_uniform.position.into();
-        self.light_uniform.position =
+        let old_position: cgmath::Vector3<_> = self.light_group.uniform.position.into();
+        self.light_group.uniform.position =
             (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
                 * old_position)
                 .into();
-        self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
+        self.queue.write_buffer(
+            &self.light_group.buffer,
+            0,
+            bytemuck::cast_slice(&[self.light_group.uniform]),
+        );
 
         Ok(())
     }
@@ -541,5 +544,47 @@ impl InstanceRaw {
                 },
             ],
         }
+    }
+}
+
+struct BindGroupData<T> {
+    pub uniform: T,
+    pub buffer: wgpu::Buffer,
+    pub layout: wgpu::BindGroupLayout,
+    pub bind_group: wgpu::BindGroup,
+}
+impl<T: bytemuck::Pod> BindGroupData<T> {
+    pub fn new(
+        uniform: T,
+        device: &wgpu::Device,
+        label: &str,
+        usage: wgpu::BufferUsages,
+        visibility: wgpu::ShaderStages,
+    ) -> BindGroupData<T> {
+        let uniform = uniform;
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("{} Buffer", label)),
+            contents: bytemuck::cast_slice(&[uniform]),
+            usage: usage,
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some(&format!("{} Bind Group Layout", label)),
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some(&format!("{} Bind Group", label)),
+            layout: &layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
+        });
+        BindGroupData { uniform, buffer, layout, bind_group }
     }
 }
