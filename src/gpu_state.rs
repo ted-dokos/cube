@@ -440,10 +440,7 @@ fn create_render_pipeline(
     };
     let color_target = [Some(wgpu::ColorTargetState {
         format: color_format,
-        blend: Some(wgpu::BlendState {
-            alpha: wgpu::BlendComponent::REPLACE,
-            color: wgpu::BlendComponent::REPLACE,
-        }),
+        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
         write_mask: wgpu::ColorWrites::ALL,
     })];
     let fragment = Some(wgpu::FragmentState {
