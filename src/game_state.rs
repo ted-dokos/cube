@@ -54,7 +54,7 @@ impl GameState {
                             cgmath::Deg(45.0),
                         )
                     };
-                    Instance { position, scale: 1.0, rotation }
+                    Instance { position, scale: 1.0, rotation, shader: Shader::TEXTURE }
                 })
             })
             .collect::<Vec<_>>();
@@ -62,6 +62,7 @@ impl GameState {
             position: (0.0, -20.0, 0.0).into(),
             scale: 11.0,
             rotation: Rotor::identity(),
+            shader: Shader::TEXTURE,
         });
         let mut player_physics = Physics::new();
         player_physics.collision = Collision::new(
@@ -78,11 +79,20 @@ impl GameState {
             .into(),
             [].into(),
         );
-        let pulse_instances = vec![Instance {
-            position: (0.0, -4.5, 0.0).into(),
-            scale: 0.5,
-            rotation: Rotor::identity(),
-        }];
+        let pulse_instances = vec![
+            Instance {
+                position: (0.0, -4.5, 0.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::PULSE,
+            },
+            Instance {
+                position: (3.0, -4.5, 0.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::RIPPLE,
+            },
+        ];
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
@@ -229,25 +239,29 @@ impl InputState {
     }
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum Shader {
+    TEXTURE = 0,
+    NON_MATERIAL = 1,
+    PULSE = 2,
+    RIPPLE = 3,
+}
+
 #[derive(Clone, Copy)]
 pub struct Instance {
     pub position: cgmath::Vector3<f32>,
     pub scale: f32,
     pub rotation: Rotor,
+    pub shader: Shader,
 }
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: [
-                self.position.x,
-                self.position.y,
-                self.position.z,
-                self.scale,
-                self.rotation.s,
-                self.rotation.xy,
-                self.rotation.xz,
-                self.rotation.yz,
-            ],
+            pos: self.position.into(),
+            scale: self.scale,
+            rot: self.rotation.into(),
+            shader: self.shader as u32,
         }
     }
 }

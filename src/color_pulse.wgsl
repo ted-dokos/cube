@@ -23,6 +23,7 @@ struct InstanceInput {
     @location(5) position: vec3<f32>,
     @location(6) scale: f32,
     @location(7) rotation: vec4<f32>,
+    @location(8) shader: u32,
 };
 
 struct VertexInput {
@@ -33,13 +34,6 @@ struct VertexInput {
 struct NonmaterialVertexInput {
     @location(0) position: vec3<f32>,
 }
-
-struct FragmentInput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) tex_coords: vec2<f32>,
-    @location(1) world_normal: vec3<f32>,
-    @location(2) world_position: vec3<f32>,
-};
 
 struct NonmaterialFragmentInput {
     @builtin(position) clip_position: vec4<f32>,
@@ -88,6 +82,7 @@ fn vs_main(
     out.world_normal = apply_rotor_to_vector(instance.rotation, model.normal);
     out.world_position = calculate_world_position(instance.scale * model.position, instance);
     out.clip_position = calculate_clip_position(out.world_position);
+    out.shader = instance.shader;
     return out;
 }
 @vertex
@@ -102,12 +97,27 @@ fn nonmaterial_vs_main(
 }
 
 // Fragment shader
+struct FragmentInput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) tex_coords: vec2<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) world_position: vec3<f32>,
+    @location(3) shader: u32,
+};
+
 @group(0) @binding(0)
 var t_diffuse: texture_2d<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    switch in.shader {
+        case 2u: { return fs_pulse(in); }
+        case 3u: { return fs_ripple(in); }
+        default: { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
+    }
+}
+fn fs_pulse(in: FragmentInput) -> vec4<f32> {
     var object_color: vec4<f32> = vec4<f32>(0.03, 0.03, 0.03, 1.0);
     object_color.x += 0.9 * (cos(time.secs * 2.0) + 1.0) / 2.0;
     let ambient_strength = 0.2;
@@ -125,7 +135,24 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
     return vec4<f32>(result, object_color.a);
 }
-@fragment
-fn nonmaterial_fs_main(in: NonmaterialFragmentInput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+fn fs_ripple(in: FragmentInput) -> vec4<f32> {
+    var object_color: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    let uv = in.tex_coords;
+    let radius = length(uv);
+    let color_str = (cos(3.0* time.secs + radius*100.0) + 1.0) / 2.0;
+    object_color += vec4<f32>(color_str, color_str, color_str, 0.0);
+    let ambient_strength = 0.2;
+    let ambient_color = light.color * ambient_strength;
+
+    let light_dir = normalize(light.position - in.world_position);
+    let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
+    let diffuse_color = light.color * diffuse_strength;
+
+    let view_dir = normalize(camera.view_pos - in.world_position);
+    let half_dir = normalize(view_dir + light_dir);
+    let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
+    let specular_color = light.color * specular_strength;
+
+    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
+    return vec4<f32>(result, object_color.a);
 }

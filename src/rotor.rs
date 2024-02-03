@@ -44,3 +44,8 @@ impl Rotor {
         }
     }
 }
+impl Into<[f32; 4]> for Rotor {
+    fn into(self) -> [f32; 4] {
+        [self.s, self.xy, self.xz, self.yz]
+    }
+}

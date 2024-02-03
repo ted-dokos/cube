@@ -1,7 +1,7 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
     camera::{Camera, CameraUniform},
-    game_state::{GameState, Instance},
+    game_state::{GameState, Instance, Shader},
     light::LightUniform,
     model::{self, DescribeVB, Material, Mesh, ModelVertex},
     rotor::Rotor,
@@ -270,6 +270,7 @@ impl WebGPUState {
                 position: cgmath::Vector3::<f32>::new(0.0, 0.0, 0.0),
                 scale: 0.25,
                 rotation: Rotor::identity(),
+                shader: Shader::NON_MATERIAL,
             };
             instance.to_raw()
         });
@@ -397,7 +398,7 @@ impl WebGPUState {
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
-            draw_mesh_instanced(&mut render_pass, mesh, material, 0..1);
+            draw_mesh_instanced(&mut render_pass, mesh, material, 0..2);
         }
 
         // submit will accept anything that implements IntoIter
@@ -513,7 +514,10 @@ fn draw_nonmaterial_mesh_instanced<'a>(
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceRaw {
-    pub model: [f32; 8],
+    pub pos: [f32; 3],
+    pub scale: f32,
+    pub rot: [f32; 4],
+    pub shader: u32,
 }
 impl InstanceRaw {
     fn get_vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
@@ -542,6 +546,11 @@ impl InstanceRaw {
                     shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Uint32,
+                }
             ],
         }
     }

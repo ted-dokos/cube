@@ -64,6 +64,53 @@ impl DescribeVB for ModelVertex {
     }
 }
 
+pub fn cube_model() -> Model {
+    let vertices: Vec<ModelVertex> = [
+        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0]}, // 0
+        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [1.0, 0.0, 0.0]},
+        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [1.0, 0.0, 0.0]},
+        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [1.0, 0.0, 0.0]},
+
+        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, 1.0, 0.0]}, // 4
+        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 1.0, 0.0]},
+        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, 1.0, 0.0]},
+        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 1.0, 0.0]},
+
+        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, 1.0]}, // 8
+        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 0.0, 1.0]},
+        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [0.0, 0.0, 1.0]},
+        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 0.0, 1.0]},
+
+        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [-1.0, 0.0, 0.0]}, // 12
+        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [-1.0, 0.0, 0.0]},
+        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [-1.0, 0.0, 0.0]},
+        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [-1.0, 0.0, 0.0]},
+
+        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, -1.0, 0.0]}, //16
+        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, -1.0, 0.0]},
+        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, -1.0, 0.0]},
+        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, -1.0, 0.0]},
+
+        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 0.0, -1.0]}, // 20
+        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, 0.0, -1.0]},
+        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 0.0, -1.0]},
+        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, -1.0]},
+    ].into();
+    let indices = [
+        0, 1, 2,
+        1, 3, 2,
+
+        4, 5, 6,
+        6, 5, 7,
+
+    ];
+    //let mesh =
+    Model {
+        materials: [].into(),
+        meshes: [/*mesh*/].into(),
+    }
+}
+
 pub async fn load_model(
     file_name: &str,
     device: &Device,

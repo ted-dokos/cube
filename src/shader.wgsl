@@ -17,6 +17,7 @@ struct InstanceInput {
     @location(5) position: vec3<f32>,
     @location(6) scale: f32,
     @location(7) rotation: vec4<f32>,
+    @location(8) shader: u32,
 };
 
 struct VertexInput {
