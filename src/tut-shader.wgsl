@@ -12,17 +12,12 @@ struct Light {
 @group(2) @binding(0)
 var<uniform> light: Light;
 
-struct Time {
-    secs: f32,
-}
-@group(3) @binding(0)
-var<uniform> time: Time;
-
 // Vertex shader
 struct InstanceInput {
     @location(5) position: vec3<f32>,
     @location(6) scale: f32,
     @location(7) rotation: vec4<f32>,
+    @location(8) shader: u32,
 };
 
 struct VertexInput {
@@ -108,9 +103,8 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    var object_color: vec4<f32> = vec4<f32>(0.03, 0.03, 0.03, 1.0);
-    object_color.x += 0.9 * (cos(time.secs * 2.0) + 1.0) / 2.0;
-    let ambient_strength = 0.2;
+    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let ambient_strength = 0.1;
     let ambient_color = light.color * ambient_strength;
 
     let light_dir = normalize(light.position - in.world_position);

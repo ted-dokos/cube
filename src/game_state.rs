@@ -24,7 +24,7 @@ pub struct GameState {
     tick: isize,
     update_instant: Instant,
     pub cube_instances: Vec<Instance>,
-    pub pulse_instances: Vec<Instance>,
+    pub simple_cube_instances: Vec<Instance>,
 }
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
@@ -54,7 +54,7 @@ impl GameState {
                             cgmath::Deg(45.0),
                         )
                     };
-                    Instance { position, scale: 1.0, rotation }
+                    Instance { position, scale: 1.0, rotation, shader: Shader::Texture }
                 })
             })
             .collect::<Vec<_>>();
@@ -62,6 +62,7 @@ impl GameState {
             position: (0.0, -20.0, 0.0).into(),
             scale: 11.0,
             rotation: Rotor::identity(),
+            shader: Shader::Texture,
         });
         let mut player_physics = Physics::new();
         player_physics.collision = Collision::new(
@@ -78,11 +79,20 @@ impl GameState {
             .into(),
             [].into(),
         );
-        let pulse_instances = vec![Instance {
-            position: (0.0, -4.5, 0.0).into(),
-            scale: 0.5,
-            rotation: Rotor::identity(),
-        }];
+        let simple_cube_instances = vec![
+            Instance {
+                position: (0.0, -4.5, 0.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::Pulse,
+            },
+            Instance {
+                position: (3.0, -4.5, 0.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::Ripple,
+            },
+        ];
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
@@ -105,7 +115,7 @@ impl GameState {
             tick: 0,
             update_instant: Instant::now(),
             cube_instances: instances,
-            pulse_instances,
+            simple_cube_instances,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
@@ -229,25 +239,29 @@ impl InputState {
     }
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum Shader {
+    Texture = 0,
+    NonMaterial = 1,
+    Pulse = 2,
+    Ripple = 3,
+}
+
 #[derive(Clone, Copy)]
 pub struct Instance {
     pub position: cgmath::Vector3<f32>,
     pub scale: f32,
     pub rotation: Rotor,
+    pub shader: Shader,
 }
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: [
-                self.position.x,
-                self.position.y,
-                self.position.z,
-                self.scale,
-                self.rotation.s,
-                self.rotation.xy,
-                self.rotation.xz,
-                self.rotation.yz,
-            ],
+            pos: self.position.into(),
+            scale: self.scale,
+            rot: self.rotation.into(),
+            shader: self.shader as u32,
         }
     }
 }
