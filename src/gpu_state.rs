@@ -188,7 +188,7 @@ impl WebGPUState {
 
         let simple_cube_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Simple Cube Pipeline Layout"),
+                label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
                     &camera_group.layout,
@@ -198,11 +198,11 @@ impl WebGPUState {
                 push_constant_ranges: &[],
             });
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Simple Cube Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("cube-shaders.wgsl").into()),
+                label: Some("Shaders"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders.wgsl").into()),
             };
             create_render_pipeline(
-                "Simple Cube Render Pipeline",
+                "Render Pipeline",
                 &device,
                 &layout,
                 config.format,
