@@ -58,6 +58,7 @@ pub struct WebGPUState {
     instances: Vec<InstanceRaw>,
     instance_buffer: wgpu::Buffer,
     nonmaterial_instance_buffer: wgpu::Buffer,
+    simple_cube_instances: Vec<InstanceRaw>,
     simple_cube_instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
     depth_texture: texture::Texture,
@@ -306,6 +307,7 @@ impl WebGPUState {
             instances: instances_raw,
             instance_buffer,
             nonmaterial_instance_buffer,
+            simple_cube_instances,
             simple_cube_instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             depth_texture,
@@ -398,7 +400,7 @@ impl WebGPUState {
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
-            draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..3);
+            draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
         }
 
         // submit will accept anything that implements IntoIter
