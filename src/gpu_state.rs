@@ -407,16 +407,16 @@ impl WebGPUState {
 
         // BAD CODE ALERT: update the light's position each frame. I need to move this into the game
         // state. I'm just lazy right now.
-        let old_position: cgmath::Vector3<_> = self.light_group.uniform.position.into();
-        self.light_group.uniform.position =
-            (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
-                * old_position)
-                .into();
-        self.queue.write_buffer(
-            &self.light_group.buffer,
-            0,
-            bytemuck::cast_slice(&[self.light_group.uniform]),
-        );
+        // let old_position: cgmath::Vector3<_> = self.light_group.uniform.position.into();
+        // self.light_group.uniform.position =
+        //     (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
+        //         * old_position)
+        //         .into();
+        // self.queue.write_buffer(
+        //     &self.light_group.buffer,
+        //     0,
+        //     bytemuck::cast_slice(&[self.light_group.uniform]),
+        // );
 
         Ok(())
     }
