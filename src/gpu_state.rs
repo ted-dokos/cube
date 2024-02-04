@@ -68,6 +68,7 @@ pub struct WebGPUState {
     time_group: BindGroupData<TimeUniform>,
     obj_model: model::Model,
     simple_cube_model: model::Model,
+    sphere_model: model::Model,
 }
 impl WebGPUState {
     pub async fn new(window: HWND, hinstance: HINSTANCE, game_state: GameState) -> Self {
@@ -294,6 +295,10 @@ impl WebGPUState {
             .await
             .unwrap();
 
+            let sphere_model = model::load_model("sphere-flat.obj", &device, &queue, &texture_bind_group_layout)
+            .await
+            .unwrap();
+
         let simple_cube_model = model::cube_model(&device);
 
         Self {
@@ -317,6 +322,7 @@ impl WebGPUState {
             time_group,
             obj_model,
             simple_cube_model,
+            sphere_model,
         }
     }
     pub fn resize(&mut self, rect: RECT) {
@@ -400,7 +406,8 @@ impl WebGPUState {
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
-            draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
+            // draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
+            draw_mesh_instanced(&mut render_pass, &self.sphere_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
         }
 
         // submit will accept anything that implements IntoIter
