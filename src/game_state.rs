@@ -3,7 +3,11 @@ use std::time::Instant;
 use cgmath::{num_traits::abs, InnerSpace, Vector3, Zero};
 
 use crate::{
-    camera::Camera, constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK}, gpu_state::InstanceRaw, model::Model, physics::{Collision, Physics}, rotor::Rotor
+    camera::Camera,
+    constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK},
+    gpu_state::InstanceRaw,
+    physics::{Collision, Physics},
+    rotor::Rotor,
 };
 
 #[derive(Clone)]
@@ -83,10 +87,7 @@ impl GameState {
             rotation: Rotor::identity(),
             shader: Shader::Texture,
         });
-        instanced_entities.push(ModelWithInstances {
-            id: 0,
-            instances,
-        });
+        instanced_entities.push(ModelWithInstances { id: 0, instances });
         let simple_cube_instances = vec![
             Instance {
                 position: (0.0, -4.5, 0.0).into(),
@@ -107,10 +108,22 @@ impl GameState {
                 shader: Shader::ColorTween,
             },
         ];
-        instanced_entities.push(ModelWithInstances {
-            id: 1,
-            instances: simple_cube_instances,
-        });
+        instanced_entities.push(ModelWithInstances { id: 1, instances: simple_cube_instances });
+        let sphere_instances = vec![
+            Instance {
+                position: (-3.0, -4.5, 6.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::Pulse,
+            },
+            Instance {
+                position: (-3.0, -4.5, 3.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::ColorTween,
+            },
+        ];
+        instanced_entities.push(ModelWithInstances { id: 2, instances: sphere_instances });
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
