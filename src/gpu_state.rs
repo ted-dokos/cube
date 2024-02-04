@@ -1,10 +1,9 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
     camera::{Camera, CameraUniform},
-    game_state::{GameState, Instance, Shader},
+    game_state::{GameState, Instance},
     light::LightUniform,
     model::{self, DescribeVB, Material, Mesh, ModelVertex},
-    rotor::Rotor,
     texture,
     time::TimeUniform,
 };
@@ -68,8 +67,7 @@ pub struct WebGPUState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    simple_cube_render_pipeline: wgpu::RenderPipeline,
-    nonmaterial_instance_buffer: wgpu::Buffer,
+    render_pipeline: wgpu::RenderPipeline,
     background_color: wgpu::Color,
     depth_texture: texture::Texture,
     camera_group: BindGroupData<CameraUniform>,
@@ -163,7 +161,6 @@ impl WebGPUState {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         );
-
         let start_time = Instant::now();
         let time_group = BindGroupData::<TimeUniform>::new(
             TimeUniform::new(0.0),
@@ -172,7 +169,6 @@ impl WebGPUState {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         );
-
         let light_group = BindGroupData::<LightUniform>::new(
             LightUniform {
                 position: [2.0, 2.0, 2.0],
@@ -186,7 +182,7 @@ impl WebGPUState {
             wgpu::ShaderStages::VERTEX_FRAGMENT,
         );
 
-        let simple_cube_render_pipeline = {
+        let render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
@@ -213,64 +209,43 @@ impl WebGPUState {
                 "fs_main",
             )
         };
-        let brick_cube_model =
-            model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
-                .await
-                .unwrap();
 
-        let mut models = Vec::<ModelData>::new();
-        models.push(ModelData::new(
-            &device,
-            brick_cube_model,
-            &game_state.instanced_entities[0].instances,
-        ));
-
-        let mut nonmaterial_instances = Vec::<InstanceRaw>::new();
-        nonmaterial_instances.push({
-            let instance = Instance {
-                position: light_group.uniform.position.into(),
-                scale: 0.25,
-                rotation: Rotor::identity(),
-                shader: Shader::NonMaterial,
-            };
-            instance.to_raw()
-        });
-        let nonmaterial_instance_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&nonmaterial_instances),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        // let simple_cube_instances =
-        // game_state.simple_cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-
-        // simple cube
-        models.push(ModelData::new(
-            &device,
-            model::cube_model(&device),
-            &game_state.instanced_entities[1].instances,
-        ));
-
-        let sphere_model =
-            model::load_model("sphere-flat.obj", &device, &queue, &texture_bind_group_layout)
-                .await
-                .unwrap();
-        models.push(ModelData::new(
-            &device,
-            sphere_model,
-            &game_state.instanced_entities[2].instances,
-        ));
-        models.push(ModelData::new(&device, model::load_model("sphere.obj", &device, &queue, &texture_bind_group_layout)
-        .await
-        .unwrap(), &game_state.instanced_entities[3].instances ));
+        let models = vec![
+            ModelData::new(
+                &device,
+                model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[0].instances,
+            ),
+            // simple cube
+            ModelData::new(
+                &device,
+                model::cube_model(&device),
+                &game_state.instanced_entities[1].instances,
+            ),
+            ModelData::new(
+                &device,
+                model::load_model("sphere-flat.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[2].instances,
+            ),
+            ModelData::new(
+                &device,
+                model::load_model("sphere.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[3].instances,
+            ),
+        ];
 
         Self {
             surface,
             device,
             queue,
             config,
-            simple_cube_render_pipeline,
-            nonmaterial_instance_buffer,
+            render_pipeline,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             depth_texture,
             camera_group,
@@ -344,8 +319,7 @@ impl WebGPUState {
             let mesh = &brick_cube_data.model.meshes[0];
             let material = &brick_cube_data.model.materials[mesh.material];
 
-            // render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_pipeline(&self.simple_cube_render_pipeline);
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(1, brick_cube_data.buffer.slice(..));
             render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
@@ -381,14 +355,6 @@ impl WebGPUState {
                 &smooth_sphere_data.model.meshes[0],
                 material, /* (not actually used) */
                 0..smooth_sphere_data.instances.len() as u32,
-            );
-            // Draw a mesh for the light.
-            render_pass.set_vertex_buffer(1, self.nonmaterial_instance_buffer.slice(..));
-            draw_mesh_instanced(
-                &mut render_pass,
-                mesh,
-                material, /* (not actually used) */
-                0..1 as u32,
             );
         }
 

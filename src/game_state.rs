@@ -81,11 +81,19 @@ impl GameState {
                 })
             })
             .collect::<Vec<_>>();
+        // Big floor instance.
         instances.push(Instance {
             position: (0.0, -20.0, 0.0).into(),
             scale: 11.0,
             rotation: Rotor::identity(),
             shader: Shader::Texture,
+        });
+        // Light instance.
+        instances.push(Instance {
+            position: Vector3::new(2.0, 2.0, 2.0),
+            scale: 0.25,
+            rotation: Rotor::identity(),
+            shader: Shader::NonMaterial,
         });
         instanced_entities.push(ModelWithInstances { id: 0, instances });
         let simple_cube_instances = vec![
