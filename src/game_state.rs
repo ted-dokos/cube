@@ -109,21 +109,25 @@ impl GameState {
             },
         ];
         instanced_entities.push(ModelWithInstances { id: 1, instances: simple_cube_instances });
-        let sphere_instances = vec![
-            Instance {
-                position: (-3.0, -4.5, 6.0).into(),
-                scale: 0.5,
-                rotation: Rotor::identity(),
-                shader: Shader::Pulse,
-            },
-            Instance {
+        instanced_entities.push(ModelWithInstances {
+            id: 2,
+            instances: vec![Instance {
                 position: (-3.0, -4.5, 3.0).into(),
                 scale: 0.5,
                 rotation: Rotor::identity(),
+                shader: Shader::Pulse,
+            }],
+        });
+        instanced_entities.push(ModelWithInstances {
+            id: 3,
+            instances: vec![Instance {
+                position: (-3.0, -4.5, 6.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
                 shader: Shader::ColorTween,
-            },
-        ];
-        instanced_entities.push(ModelWithInstances { id: 2, instances: sphere_instances });
+            }],
+        });
+
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {

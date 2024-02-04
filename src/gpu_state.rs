@@ -260,6 +260,9 @@ impl WebGPUState {
             sphere_model,
             &game_state.instanced_entities[2].instances,
         ));
+        models.push(ModelData::new(&device, model::load_model("sphere.obj", &device, &queue, &texture_bind_group_layout)
+        .await
+        .unwrap(), &game_state.instanced_entities[3].instances ));
 
         Self {
             surface,
@@ -370,6 +373,14 @@ impl WebGPUState {
                 &sphere_data.model.meshes[0],
                 material, /* (not actually used) */
                 0..sphere_data.instances.len() as u32,
+            );
+            let smooth_sphere_data = &self.models[3];
+            render_pass.set_vertex_buffer(1, smooth_sphere_data.buffer.slice(..));
+            draw_mesh_instanced(
+                &mut render_pass,
+                &smooth_sphere_data.model.meshes[0],
+                material, /* (not actually used) */
+                0..smooth_sphere_data.instances.len() as u32,
             );
             // Draw a mesh for the light.
             render_pass.set_vertex_buffer(1, self.nonmaterial_instance_buffer.slice(..));
