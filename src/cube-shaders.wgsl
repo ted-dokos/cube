@@ -92,7 +92,8 @@ fn nonmaterial_vs_main(
 ) -> NonmaterialFragmentInput {
     var out: NonmaterialFragmentInput;
     out.clip_position = calculate_clip_position(
-        calculate_world_position(instance.scale * model.position + light.position, instance));
+        calculate_world_position(instance.scale * model.position + light.position, instance)
+    );
     return out;
 }
 
@@ -132,13 +133,17 @@ fn calculate_lighting(in: FragmentInput) -> LightingOutput {
     return out;
 }
 
+// Enums for the type of shader.
+const Pulse = 2u;
+const Ripple = 3u;
+const ColorTween = 4u;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var unlit: vec4<f32>;
     switch in.shader {
-        case 2u: { unlit = fs_pulse(in); }
-        case 3u: { unlit = fs_ripple(in); }
-        case 4u: { unlit = fs_color_tween(in); }
+        case Pulse: { unlit = fs_pulse(in); }
+        case Ripple: { unlit = fs_ripple(in); }
+        case ColorTween: { unlit = fs_color_tween(in); }
         default: { unlit = vec4<f32>(0.0, 0.0, 0.0, 1.0); }
     }
     let light = calculate_lighting(in);
@@ -154,26 +159,26 @@ fn fs_ripple(in: FragmentInput) -> vec4<f32> {
     var object_color: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let uv = in.tex_coords;
     let radius = length(uv);
-    let color_str = pow((cos(radius*20.0 - 4.0* time.secs) + 1.0) / 2.0, 2.0);
+    let color_str = pow((cos(radius * 20.0 - 4.0 * time.secs) + 1.0) / 2.0, 2.0);
 
     object_color += vec4<f32>(color_str, color_str, color_str, 0.0);
     return object_color;
 }
 
-const NUM_TWEEN_COLORS = 6;
-const TWEEN_TIME_S = 3.0;
+const NumTweenColors = 6;
+const TweenTimeSecs = 3.0;
 
 fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
-    var TWEEN_COLORS = array<vec3<f32>, NUM_TWEEN_COLORS>(
-    vec3<f32>(1.0, 0.0, 0.0), // red
-    vec3<f32>(1.0, 1.0, 0.0), // yellow
-    vec3<f32>(0.0, 1.0, 0.0), // green
-    vec3<f32>(0.0, 1.0, 1.0), // cyan
-    vec3<f32>(0.0, 0.0, 1.0), // blue
-    vec3<f32>(1.0, 0.0, 1.0), // purple
-);
-    let split = modf(time.secs / TWEEN_TIME_S);
-    let prev_idx = i32(split.whole) % NUM_TWEEN_COLORS;
-    let next_idx = (prev_idx + 1) % NUM_TWEEN_COLORS;
-    return vec4<f32>(split.fract * TWEEN_COLORS[next_idx] + (1.0 - split.fract) * TWEEN_COLORS[prev_idx], 1.0);
+    var TweenColors = array<vec3<f32>, NumTweenColors>(
+        vec3<f32>(1.0, 0.0, 0.0), // red
+        vec3<f32>(1.0, 1.0, 0.0), // yellow
+        vec3<f32>(0.0, 1.0, 0.0), // green
+        vec3<f32>(0.0, 1.0, 1.0), // cyan
+        vec3<f32>(0.0, 0.0, 1.0), // blue
+        vec3<f32>(1.0, 0.0, 1.0), // purple
+    );
+    let split = modf(time.secs / TweenTimeSecs);
+    let prev_idx = i32(split.whole) % NumTweenColors;
+    let next_idx = (prev_idx + 1) % NumTweenColors;
+    return vec4<f32>(split.fract * TweenColors[next_idx] + (1.0 - split.fract) * TweenColors[prev_idx], 1.0);
 }
