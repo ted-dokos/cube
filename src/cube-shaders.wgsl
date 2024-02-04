@@ -156,18 +156,13 @@ fn fs_pulse(in: FragmentInput) -> vec4<f32> {
     return object_color;
 }
 fn fs_ripple(in: FragmentInput) -> vec4<f32> {
-    var object_color: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let uv = in.tex_coords;
     let radius = length(uv);
     let color_str = pow((cos(radius * 20.0 - 4.0 * time.secs) + 1.0) / 2.0, 2.0);
-
-    object_color += vec4<f32>(color_str, color_str, color_str, 0.0);
-    return object_color;
+    return vec4<f32>(color_str, color_str, color_str, 1.0);
 }
-
 const NumTweenColors = 6;
 const TweenTimeSecs = 3.0;
-
 fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
     var TweenColors = array<vec3<f32>, NumTweenColors>(
         vec3<f32>(1.0, 0.0, 0.0), // red
