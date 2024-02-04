@@ -1,15 +1,13 @@
 /* WebGPUState: data and behavior needed to create and render using WebGPU. */
 use crate::{
     camera::{Camera, CameraUniform},
-    game_state::{GameState, Instance, Shader},
+    game_state::{GameState, Instance},
     light::LightUniform,
     model::{self, DescribeVB, Material, Mesh, ModelVertex},
-    rotor::Rotor,
     texture,
     time::TimeUniform,
 };
 
-use cgmath::Rotation3;
 use std::{
     ffi::c_void,
     mem::{self},
@@ -47,27 +45,36 @@ unsafe impl raw_window_handle::HasRawDisplayHandle for MyWindowHandle {
     }
 }
 
+struct ModelData {
+    model: model::Model,
+    instances: Vec<InstanceRaw>,
+    buffer: wgpu::Buffer,
+}
+impl ModelData {
+    fn new(device: &wgpu::Device, model: model::Model, instances: &Vec<Instance>) -> Self {
+        let instances_raw = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Simple Cube Instance Buffer"),
+            contents: bytemuck::cast_slice(&instances_raw),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        ModelData { model, instances: instances_raw, buffer }
+    }
+}
+
 pub struct WebGPUState {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
-    nonmaterial_render_pipeline: wgpu::RenderPipeline,
-    simple_cube_render_pipeline: wgpu::RenderPipeline,
-    instances: Vec<InstanceRaw>,
-    instance_buffer: wgpu::Buffer,
-    nonmaterial_instance_buffer: wgpu::Buffer,
-    simple_cube_instances: Vec<InstanceRaw>,
-    simple_cube_instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
     depth_texture: texture::Texture,
     camera_group: BindGroupData<CameraUniform>,
     light_group: BindGroupData<LightUniform>,
     start_time: Instant,
     time_group: BindGroupData<TimeUniform>,
-    obj_model: model::Model,
-    simple_cube_model: model::Model,
+    models: Vec<ModelData>,
 }
 impl WebGPUState {
     pub async fn new(window: HWND, hinstance: HINSTANCE, game_state: GameState) -> Self {
@@ -154,7 +161,6 @@ impl WebGPUState {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         );
-
         let start_time = Instant::now();
         let time_group = BindGroupData::<TimeUniform>::new(
             TimeUniform::new(0.0),
@@ -163,7 +169,6 @@ impl WebGPUState {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         );
-
         let light_group = BindGroupData::<LightUniform>::new(
             LightUniform {
                 position: [2.0, 2.0, 2.0],
@@ -177,37 +182,9 @@ impl WebGPUState {
             wgpu::ShaderStages::VERTEX_FRAGMENT,
         );
 
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &camera_group.layout,
-                    &light_group.layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
         let render_pipeline = {
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("tut-shader.wgsl").into()),
-            };
-            create_render_pipeline(
-                "Render Pipeline",
-                &device,
-                &render_pipeline_layout,
-                config.format,
-                Some(texture::DEPTH_FORMAT),
-                &[ModelVertex::describe_vb(), InstanceRaw::get_vertex_buffer_layout()],
-                shader,
-                "vs_main",
-                "fs_main",
-            )
-        };
-        let simple_cube_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Simple Cube Pipeline Layout"),
+                label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
                     &camera_group.layout,
@@ -217,11 +194,11 @@ impl WebGPUState {
                 push_constant_ranges: &[],
             });
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Simple Cube Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("cube-shaders.wgsl").into()),
+                label: Some("Shaders"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders.wgsl").into()),
             };
             create_render_pipeline(
-                "Simple Cube Render Pipeline",
+                "Render Pipeline",
                 &device,
                 &layout,
                 config.format,
@@ -232,69 +209,36 @@ impl WebGPUState {
                 "fs_main",
             )
         };
-        let nonmaterial_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Nonmaterial Pipeline Layout"),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &camera_group.layout,
-                    &light_group.layout,
-                ],
-                push_constant_ranges: &[],
-            });
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("tut-shader.wgsl").into()),
-            };
-            create_render_pipeline(
-                "Nonmaterial Render Pipeline",
+
+        let models = vec![
+            ModelData::new(
                 &device,
-                &layout,
-                config.format,
-                Some(texture::DEPTH_FORMAT),
-                &[ModelVertex::describe_vb(), InstanceRaw::get_vertex_buffer_layout()],
-                shader,
-                "nonmaterial_vs_main",
-                "nonmaterial_fs_main",
-            )
-        };
-
-        let instances_raw =
-            game_state.cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances_raw),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let mut nonmaterial_instances = Vec::<InstanceRaw>::new();
-        nonmaterial_instances.push({
-            let instance = Instance {
-                position: cgmath::Vector3::<f32>::new(0.0, 0.0, 0.0),
-                scale: 0.25,
-                rotation: Rotor::identity(),
-                shader: Shader::NonMaterial,
-            };
-            instance.to_raw()
-        });
-        let nonmaterial_instance_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&nonmaterial_instances),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        let simple_cube_instances =
-            game_state.simple_cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let simple_cube_instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Simple Cube Instance Buffer"),
-            contents: bytemuck::cast_slice(&simple_cube_instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let obj_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
-            .await
-            .unwrap();
-
-        let simple_cube_model = model::cube_model(&device);
+                model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[0].instances,
+            ),
+            // simple cube
+            ModelData::new(
+                &device,
+                model::cube_model(&device),
+                &game_state.instanced_entities[1].instances,
+            ),
+            ModelData::new(
+                &device,
+                model::load_model("sphere-flat.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[2].instances,
+            ),
+            ModelData::new(
+                &device,
+                model::load_model("sphere.obj", &device, &queue, &texture_bind_group_layout)
+                    .await
+                    .unwrap(),
+                &game_state.instanced_entities[3].instances,
+            ),
+        ];
 
         Self {
             surface,
@@ -302,21 +246,13 @@ impl WebGPUState {
             queue,
             config,
             render_pipeline,
-            nonmaterial_render_pipeline,
-            simple_cube_render_pipeline,
-            instances: instances_raw,
-            instance_buffer,
-            nonmaterial_instance_buffer,
-            simple_cube_instances,
-            simple_cube_instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             depth_texture,
             camera_group,
             light_group,
             start_time,
             time_group,
-            obj_model,
-            simple_cube_model,
+            models,
         }
     }
     pub fn resize(&mut self, rect: RECT) {
@@ -378,29 +314,48 @@ impl WebGPUState {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            let mesh = &self.obj_model.meshes[0];
-            let material = &self.obj_model.materials[mesh.material];
+
+            let brick_cube_data = &self.models[0];
+            let mesh = &brick_cube_data.model.meshes[0];
+            let material = &brick_cube_data.model.materials[mesh.material];
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
-            render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
-            draw_mesh_instanced(&mut render_pass, mesh, material, 0..self.instances.len() as u32);
-
-            render_pass.set_pipeline(&self.nonmaterial_render_pipeline);
-            render_pass.set_vertex_buffer(1, self.nonmaterial_instance_buffer.slice(..));
-            render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
-            render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
-            draw_nonmaterial_mesh_instanced(&mut render_pass, mesh, 0..1);
-
-            render_pass.set_pipeline(&self.simple_cube_render_pipeline);
-            render_pass.set_vertex_buffer(1, self.simple_cube_instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, brick_cube_data.buffer.slice(..));
             render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
-            draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
+            draw_mesh_instanced(
+                &mut render_pass,
+                mesh,
+                material,
+                0..brick_cube_data.instances.len() as u32,
+            );
+            let simple_cube_data = &self.models[1];
+            let sphere_data = &self.models[2];
+            render_pass.set_vertex_buffer(1, simple_cube_data.buffer.slice(..));
+            draw_mesh_instanced(
+                &mut render_pass,
+                &simple_cube_data.model.meshes[0],
+                material, /* (not actually used) */
+                0..simple_cube_data.instances.len() as u32,
+            );
+            render_pass.set_vertex_buffer(1, sphere_data.buffer.slice(..));
+            draw_mesh_instanced(
+                &mut render_pass,
+                &sphere_data.model.meshes[0],
+                material, /* (not actually used) */
+                0..sphere_data.instances.len() as u32,
+            );
+            let smooth_sphere_data = &self.models[3];
+            render_pass.set_vertex_buffer(1, smooth_sphere_data.buffer.slice(..));
+            draw_mesh_instanced(
+                &mut render_pass,
+                &smooth_sphere_data.model.meshes[0],
+                material, /* (not actually used) */
+                0..smooth_sphere_data.instances.len() as u32,
+            );
         }
 
         // submit will accept anything that implements IntoIter
@@ -499,15 +454,6 @@ fn draw_mesh_instanced<'a>(
     render_pass.set_bind_group(0, &material.bind_group, &[]);
     render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
 }
-fn draw_nonmaterial_mesh_instanced<'a>(
-    render_pass: &mut wgpu::RenderPass<'a>,
-    mesh: &'a Mesh,
-    instances: Range<u32>,
-) {
-    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-    render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
-}
 
 // Data for the graphics pipeline.
 #[repr(C)]
@@ -549,7 +495,7 @@ impl InstanceRaw {
                     offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
                     shader_location: 8,
                     format: wgpu::VertexFormat::Uint32,
-                }
+                },
             ],
         }
     }
