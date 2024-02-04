@@ -92,6 +92,12 @@ impl GameState {
                 rotation: Rotor::identity(),
                 shader: Shader::Ripple,
             },
+            Instance {
+                position: (-3.0, -4.5, 0.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::ColorTween,
+            },
         ];
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
@@ -246,6 +252,7 @@ pub enum Shader {
     NonMaterial = 1,
     Pulse = 2,
     Ripple = 3,
+    ColorTween = 4,
 }
 
 #[derive(Clone, Copy)]
