@@ -10,6 +10,7 @@ use crate::{
 };
 
 use cgmath::Rotation3;
+use tobj::Model;
 use std::{
     ffi::c_void,
     mem::{self},
@@ -47,6 +48,26 @@ unsafe impl raw_window_handle::HasRawDisplayHandle for MyWindowHandle {
     }
 }
 
+struct ModelData {
+    model: model::Model,
+    instances: Vec<InstanceRaw>,
+    buffer: wgpu::Buffer,
+}
+impl ModelData {
+    fn new(device: &wgpu::Device, model: model::Model, instances: &Vec<Instance>) -> Self {
+        let instances_raw = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Simple Cube Instance Buffer"),
+            contents: bytemuck::cast_slice(&instances_raw),
+            usage: wgpu::BufferUsages::VERTEX, });
+        ModelData {
+            model,
+            instances: instances_raw,
+            buffer,
+        }
+    }
+}
+
 pub struct WebGPUState {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -55,11 +76,11 @@ pub struct WebGPUState {
     render_pipeline: wgpu::RenderPipeline,
     nonmaterial_render_pipeline: wgpu::RenderPipeline,
     simple_cube_render_pipeline: wgpu::RenderPipeline,
-    instances: Vec<InstanceRaw>,
-    instance_buffer: wgpu::Buffer,
+    //instances: Vec<InstanceRaw>,
+    //instance_buffer: wgpu::Buffer,
     nonmaterial_instance_buffer: wgpu::Buffer,
-    simple_cube_instances: Vec<InstanceRaw>,
-    simple_cube_instance_buffer: wgpu::Buffer,
+    //simple_cube_instances: Vec<InstanceRaw>,
+    //simple_cube_instance_buffer: wgpu::Buffer,
     background_color: wgpu::Color,
     depth_texture: texture::Texture,
     camera_group: BindGroupData<CameraUniform>,
@@ -69,6 +90,7 @@ pub struct WebGPUState {
     obj_model: model::Model,
     simple_cube_model: model::Model,
     sphere_model: model::Model,
+    models: Vec<ModelData>,
 }
 impl WebGPUState {
     pub async fn new(window: HWND, hinstance: HINSTANCE, game_state: GameState) -> Self {
@@ -259,14 +281,13 @@ impl WebGPUState {
                 "nonmaterial_fs_main",
             )
         };
+        let brick_cube_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+            .await
+            .unwrap();
 
-        let instances_raw =
-            game_state.cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances_raw),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let mut models = Vec::<ModelData>::new();
+        models.push(ModelData::new(&device, brick_cube_model, &game_state.instanced_entities[0].instances));
+
         let mut nonmaterial_instances = Vec::<InstanceRaw>::new();
         nonmaterial_instances.push({
             let instance = Instance {
@@ -283,13 +304,11 @@ impl WebGPUState {
                 contents: bytemuck::cast_slice(&nonmaterial_instances),
                 usage: wgpu::BufferUsages::VERTEX,
             });
-        let simple_cube_instances =
-            game_state.simple_cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let simple_cube_instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Simple Cube Instance Buffer"),
-            contents: bytemuck::cast_slice(&simple_cube_instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // let simple_cube_instances =
+        // game_state.simple_cube_instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+        // simple cube
+        models.push(ModelData::new(&device, model::cube_model(&device), &game_state.instanced_entities[1].instances));
 
         let obj_model = model::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
             .await
@@ -309,11 +328,11 @@ impl WebGPUState {
             render_pipeline,
             nonmaterial_render_pipeline,
             simple_cube_render_pipeline,
-            instances: instances_raw,
-            instance_buffer,
+            //instances: instances_raw,
+            //instance_buffer,
             nonmaterial_instance_buffer,
-            simple_cube_instances,
-            simple_cube_instance_buffer,
+            //simple_cube_instances,
+            //simple_cube_instance_buffer,
             background_color: wgpu::Color { r: 0.2, g: 0.5, b: 0.3, a: 1.0 },
             depth_texture,
             camera_group,
@@ -323,6 +342,7 @@ impl WebGPUState {
             obj_model,
             simple_cube_model,
             sphere_model,
+            models,
         }
     }
     pub fn resize(&mut self, rect: RECT) {
@@ -384,14 +404,16 @@ impl WebGPUState {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+
+            let brick_cube_data = &self.models[0];
             let mesh = &self.obj_model.meshes[0];
             let material = &self.obj_model.materials[mesh.material];
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, brick_cube_data.buffer.slice(..));
             render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
-            draw_mesh_instanced(&mut render_pass, mesh, material, 0..self.instances.len() as u32);
+            draw_mesh_instanced(&mut render_pass, mesh, material, 0..brick_cube_data.instances.len() as u32);
 
             render_pass.set_pipeline(&self.nonmaterial_render_pipeline);
             render_pass.set_vertex_buffer(1, self.nonmaterial_instance_buffer.slice(..));
@@ -399,15 +421,16 @@ impl WebGPUState {
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
             draw_nonmaterial_mesh_instanced(&mut render_pass, mesh, 0..1);
 
+            let simple_cube_data = &self.models[1];
             render_pass.set_pipeline(&self.simple_cube_render_pipeline);
-            render_pass.set_vertex_buffer(1, self.simple_cube_instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, simple_cube_data.buffer.slice(..));
             render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
             // draw_mesh_instanced(&mut render_pass, &self.simple_cube_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
-            draw_mesh_instanced(&mut render_pass, &self.sphere_model.meshes[0], material /*(not actually used)*/, 0..self.simple_cube_instances.len() as u32);
+            draw_mesh_instanced(&mut render_pass, &simple_cube_data.model.meshes[0], material /*(not actually used)*/, 0..simple_cube_data.instances.len() as u32);
         }
 
         // submit will accept anything that implements IntoIter

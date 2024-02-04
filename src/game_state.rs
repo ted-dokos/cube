@@ -3,12 +3,14 @@ use std::time::Instant;
 use cgmath::{num_traits::abs, InnerSpace, Vector3, Zero};
 
 use crate::{
-    camera::Camera,
-    constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK},
-    gpu_state::InstanceRaw,
-    physics::{Collision, Physics},
-    rotor::Rotor,
+    camera::Camera, constants::{GRAVITY, PLAYER_FORCE, TIME_PER_GAME_TICK}, gpu_state::InstanceRaw, model::Model, physics::{Collision, Physics}, rotor::Rotor
 };
+
+#[derive(Clone)]
+pub struct ModelWithInstances {
+    pub id: u32,
+    pub instances: Vec<Instance>,
+}
 
 #[derive(Clone)]
 struct Player {
@@ -23,11 +25,28 @@ pub struct GameState {
     player: Player,
     tick: isize,
     update_instant: Instant,
-    pub cube_instances: Vec<Instance>,
-    pub simple_cube_instances: Vec<Instance>,
+    pub instanced_entities: Vec<ModelWithInstances>,
+    // pub cube_instances: Vec<Instance>,
+    //pub simple_cube_instances: Vec<Instance>,
 }
 impl GameState {
     pub fn new(aspect_ratio: f32) -> Self {
+        let mut player_physics = Physics::new();
+        player_physics.collision = Collision::new(
+            [
+                Vector3::new(0.125, 0.125, 0.5),
+                Vector3::new(-0.125, 0.125, 0.5),
+                Vector3::new(0.125, -0.125, 0.5),
+                Vector3::new(-0.125, -0.125, 0.5),
+                Vector3::new(0.125, 0.125, -0.5),
+                Vector3::new(-0.125, 0.125, -0.5),
+                Vector3::new(0.125, -0.125, -0.5),
+                Vector3::new(-0.125, -0.125, -0.5),
+            ]
+            .into(),
+            [].into(),
+        );
+        let mut instanced_entities = Vec::<ModelWithInstances>::new();
         const NUM_INSTANCES_PER_ROW: u32 = 10;
         const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
             NUM_INSTANCES_PER_ROW as f32 * 0.5,
@@ -64,21 +83,10 @@ impl GameState {
             rotation: Rotor::identity(),
             shader: Shader::Texture,
         });
-        let mut player_physics = Physics::new();
-        player_physics.collision = Collision::new(
-            [
-                Vector3::new(0.125, 0.125, 0.5),
-                Vector3::new(-0.125, 0.125, 0.5),
-                Vector3::new(0.125, -0.125, 0.5),
-                Vector3::new(-0.125, -0.125, 0.5),
-                Vector3::new(0.125, 0.125, -0.5),
-                Vector3::new(-0.125, 0.125, -0.5),
-                Vector3::new(0.125, -0.125, -0.5),
-                Vector3::new(-0.125, -0.125, -0.5),
-            ]
-            .into(),
-            [].into(),
-        );
+        instanced_entities.push(ModelWithInstances {
+            id: 0,
+            instances,
+        });
         let simple_cube_instances = vec![
             Instance {
                 position: (0.0, -4.5, 0.0).into(),
@@ -99,6 +107,10 @@ impl GameState {
                 shader: Shader::ColorTween,
             },
         ];
+        instanced_entities.push(ModelWithInstances {
+            id: 1,
+            instances: simple_cube_instances,
+        });
         const CAMERA_EYE_Y: f32 = 5.0;
         player_physics.position = (0.0, CAMERA_EYE_Y - CAMERA_PHYSICS_OFFSET, 10.0).into();
         GameState {
@@ -120,8 +132,9 @@ impl GameState {
             },
             tick: 0,
             update_instant: Instant::now(),
-            cube_instances: instances,
-            simple_cube_instances,
+            // cube_instances: instances,
+            //simple_cube_instances,
+            instanced_entities,
         }
     }
     pub fn change_camera_aspect(&mut self, aspect_ratio: f32) {
