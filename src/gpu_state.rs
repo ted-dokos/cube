@@ -238,6 +238,11 @@ impl WebGPUState {
                     .unwrap(),
                 &game_state.instanced_entities[3].instances,
             ),
+            ModelData::new(
+                &device,
+                model::double_cube_model(&device),
+                &game_state.instanced_entities[4].instances,
+            ),
         ];
 
         Self {
@@ -322,7 +327,7 @@ impl WebGPUState {
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
 
-            for model_data in &self.models[0..4] {
+            for model_data in &self.models {
                 render_pass.set_vertex_buffer(1, model_data.buffer.slice(..));
                 for mesh in &model_data.model.meshes {
                     draw_mesh_instanced(

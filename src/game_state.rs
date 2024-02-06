@@ -115,11 +115,15 @@ impl GameState {
                 rotation: Rotor::identity(),
                 shader: Shader::ColorTween,
             },
+            // Interesting "bug": the spheres don't show up through this cube, because they are
+            // drawn later in the scene. See
+            // https://docs.godotengine.org/en/latest/tutorials/3d/3d_rendering_limitations.html#transparency-sorting.
             Instance {
                 position: (-6.0, -4.5, 0.0).into(),
-                scale: 0.5, rotation: Rotor::identity(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
                 shader: Shader::SimpleTransparency,
-            }
+            },
         ];
         instanced_entities.push(ModelWithInstances { id: 1, instances: simple_cube_instances });
         instanced_entities.push(ModelWithInstances {
@@ -138,6 +142,15 @@ impl GameState {
                 scale: 0.5,
                 rotation: Rotor::identity(),
                 shader: Shader::ColorTween,
+            }],
+        });
+        instanced_entities.push(ModelWithInstances {
+            id: 4,
+            instances: vec![Instance {
+                position: (-6.0, -4.5, -3.0).into(),
+                scale: 0.5,
+                rotation: Rotor::identity(),
+                shader: Shader::SimpleTransparency,
             }],
         });
 
