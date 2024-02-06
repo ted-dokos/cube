@@ -27,7 +27,7 @@ pub struct Mesh {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
     pub num_elements: u32,
-    pub material: usize,
+    pub material: Option<usize>,
     pub raw_vertices: Vec<ModelVertex>,
     pub raw_indices: Vec<u32>,
 }
@@ -133,7 +133,7 @@ pub fn cube_model(
         vertex_buffer,
         index_buffer,
         num_elements: indices.len() as u32,
-        material: 0,
+        material: None,
         raw_vertices: vertices,
         raw_indices: indices.into(),
     };
@@ -220,7 +220,7 @@ pub async fn load_model(
                 vertex_buffer,
                 index_buffer,
                 num_elements: m.mesh.indices.len() as u32,
-                material: m.mesh.material_id.unwrap_or(0),
+                material: m.mesh.material_id,
                 raw_vertices: vertices,
                 raw_indices: m.mesh.indices.clone(),
             }

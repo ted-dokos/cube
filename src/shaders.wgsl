@@ -31,13 +31,6 @@ struct VertexInput {
     @location(1) tex_coords: vec2<f32>,
     @location(2) normal: vec3<f32>,
 }
-struct NonmaterialVertexInput {
-    @location(0) position: vec3<f32>,
-}
-
-struct NonmaterialFragmentInput {
-    @builtin(position) clip_position: vec4<f32>,
-}
 
 fn apply_rotor_to_vector(
     rotor: vec4<f32>,
@@ -85,17 +78,6 @@ fn vs_main(
     out.shader = instance.shader;
     return out;
 }
-@vertex
-fn nonmaterial_vs_main(
-    model: NonmaterialVertexInput,
-    instance: InstanceInput
-) -> NonmaterialFragmentInput {
-    var out: NonmaterialFragmentInput;
-    out.clip_position = calculate_clip_position(
-        calculate_world_position(instance.scale * model.position + light.position, instance)
-    );
-    return out;
-}
 
 // Fragment shader
 struct FragmentInput {
@@ -134,6 +116,8 @@ fn calculate_lighting(in: FragmentInput) -> LightingOutput {
 }
 
 // Enums for the type of shader.
+const Texture = 0u;
+const NonMaterial = 1u;
 const Pulse = 2u;
 const Ripple = 3u;
 const ColorTween = 4u;
@@ -142,6 +126,8 @@ const SimpleTransparency = 5u;
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var unlit: vec4<f32>;
     switch in.shader {
+        case Texture: { unlit = textureSample(t_diffuse, s_diffuse, in.tex_coords); }
+        case NonMaterial { return vec4<f32>(light.color, 1.0); }
         case Pulse: { unlit = fs_pulse(in); }
         case Ripple: { unlit = fs_ripple(in); }
         case ColorTween: { unlit = fs_color_tween(in); }
