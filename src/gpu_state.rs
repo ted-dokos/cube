@@ -315,47 +315,28 @@ impl WebGPUState {
                 timestamp_writes: None,
             });
 
-            let brick_cube_data = &self.models[0];
-            let mesh = &brick_cube_data.model.meshes[0];
-            let material = &brick_cube_data.model.materials[mesh.material];
-
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(1, brick_cube_data.buffer.slice(..));
             render_pass.set_bind_group(1, &self.camera_group.bind_group, &[]);
             render_pass.set_bind_group(2, &self.light_group.bind_group, &[]);
             render_pass.set_bind_group(3, &self.time_group.bind_group, &[]);
             let time = (Instant::now() - self.start_time).as_secs_f32();
             self.queue.write_buffer(&self.time_group.buffer, 0, bytemuck::cast_slice(&[time]));
-            draw_mesh_instanced(
-                &mut render_pass,
-                mesh,
-                material,
-                0..brick_cube_data.instances.len() as u32,
-            );
-            let simple_cube_data = &self.models[1];
-            let sphere_data = &self.models[2];
-            render_pass.set_vertex_buffer(1, simple_cube_data.buffer.slice(..));
-            draw_mesh_instanced(
-                &mut render_pass,
-                &simple_cube_data.model.meshes[0],
-                material, /* (not actually used) */
-                0..simple_cube_data.instances.len() as u32,
-            );
-            render_pass.set_vertex_buffer(1, sphere_data.buffer.slice(..));
-            draw_mesh_instanced(
-                &mut render_pass,
-                &sphere_data.model.meshes[0],
-                material, /* (not actually used) */
-                0..sphere_data.instances.len() as u32,
-            );
-            let smooth_sphere_data = &self.models[3];
-            render_pass.set_vertex_buffer(1, smooth_sphere_data.buffer.slice(..));
-            draw_mesh_instanced(
-                &mut render_pass,
-                &smooth_sphere_data.model.meshes[0],
-                material, /* (not actually used) */
-                0..smooth_sphere_data.instances.len() as u32,
-            );
+
+            for model_data in &self.models[0..4] {
+                render_pass.set_vertex_buffer(1, model_data.buffer.slice(..));
+                for mesh in &model_data.model.meshes {
+                    draw_mesh_instanced(
+                        &mut render_pass,
+                        mesh,
+                        if mesh.material.is_some() {
+                            Some(&model_data.model.materials[mesh.material.unwrap()])
+                        } else {
+                            None
+                        },
+                        0..model_data.instances.len() as u32,
+                    );
+                }
+            }
         }
 
         // submit will accept anything that implements IntoIter
@@ -440,18 +421,24 @@ fn create_render_pipeline(
 }
 
 #[allow(unused)]
-fn draw_mesh<'a>(render_pass: &mut wgpu::RenderPass<'a>, mesh: &'a Mesh, material: &'a Material) {
+fn draw_mesh<'a>(
+    render_pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'a Mesh,
+    material: Option<&'a Material>,
+) {
     draw_mesh_instanced(render_pass, mesh, material, 0..1);
 }
 fn draw_mesh_instanced<'a>(
     render_pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a Mesh,
-    material: &'a Material,
+    material: Option<&'a Material>,
     instances: Range<u32>,
 ) {
     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-    render_pass.set_bind_group(0, &material.bind_group, &[]);
+    if material.is_some() {
+        render_pass.set_bind_group(0, &material.unwrap().bind_group, &[]);
+    }
     render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
 }
 
