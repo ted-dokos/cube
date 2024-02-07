@@ -122,6 +122,7 @@ const Pulse = 2u;
 const Ripple = 3u;
 const ColorTween = 4u;
 const SimpleTransparency = 5u;
+const Aerogel = 6u;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var unlit: vec4<f32>;
@@ -132,6 +133,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         case Ripple: { unlit = fs_ripple(in); }
         case ColorTween: { unlit = fs_color_tween(in); }
         case SimpleTransparency: { unlit = vec4<f32>(0.5); }
+        case Aerogel: { unlit = fs_aerogel(in); }
         default: { unlit = vec4<f32>(0.0, 0.0, 0.0, 1.0); }
     }
     let light = calculate_lighting(in);
@@ -164,4 +166,24 @@ fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
     let prev_idx = i32(split.whole) % NumTweenColors;
     let next_idx = (prev_idx + 1) % NumTweenColors;
     return vec4<f32>(split.fract * TweenColors[next_idx] + (1.0 - split.fract) * TweenColors[prev_idx], 1.0);
+}
+fn fs_aerogel(in: FragmentInput) -> vec4<f32> {
+    let ray = normalize(in.world_position - camera.view_pos);
+    let box_pos = vec3<f32>(3.0, -4.5, 3.0);
+    var d = 1.0;
+
+    var step = sdf(in.world_position + d * ray - box_pos);
+    let max_iters = 25;
+    var num_iters = 0;
+    while abs(step) > 0.001 && num_iters < max_iters
+    {
+        d -= step;
+        step = sdf(in.world_position + d * ray - box_pos);
+        num_iters += 1;
+    }
+    return vec4<f32>(0.0, 1.0, 0.0, 1.0 - exp(-d));
+}
+fn sdf(point: vec3<f32>) -> f32 {
+    let q = abs(point) - vec3<f32>(1.0, 1.0, 1.0);
+    return length(max(q, vec3<f32>(0.0, 0.0, 0.0))) + min(max(max(q.x, q.y), q.z), 0.0);
 }
