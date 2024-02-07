@@ -121,6 +121,7 @@ const NonMaterial = 1u;
 const Pulse = 2u;
 const Ripple = 3u;
 const ColorTween = 4u;
+const SimpleTransparency = 5u;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var unlit: vec4<f32>;
@@ -130,6 +131,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         case Pulse: { unlit = fs_pulse(in); }
         case Ripple: { unlit = fs_ripple(in); }
         case ColorTween: { unlit = fs_color_tween(in); }
+        case SimpleTransparency: { unlit = vec4<f32>(0.5); }
         default: { unlit = vec4<f32>(0.0, 0.0, 0.0, 1.0); }
     }
     let light = calculate_lighting(in);

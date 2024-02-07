@@ -3,11 +3,11 @@ use crate::resources;
 use anyhow::Result;
 use std::io::Cursor;
 use std::{io::BufReader, mem::size_of};
+use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroupLayout, Buffer, BufferAddress, Device, Queue, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
 };
-use wgpu::util::DeviceExt;
 
 use crate::texture;
 
@@ -64,59 +64,136 @@ impl DescribeVB for ModelVertex {
     }
 }
 
-pub fn cube_model(
-    device: &Device,
-) -> Model {
-    let vertices: Vec<ModelVertex> = [
-        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0]}, // 0
-        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [1.0, 0.0, 0.0]},
-        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [1.0, 0.0, 0.0]},
-        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [1.0, 0.0, 0.0]},
-
-        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, 1.0, 0.0]}, // 4
-        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 1.0, 0.0]},
-        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, 1.0, 0.0]},
-        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 1.0, 0.0]},
-
-        ModelVertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, 1.0]}, // 8
-        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 0.0, 1.0]},
-        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [0.0, 0.0, 1.0]},
-        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 0.0, 1.0]},
-
-        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [-1.0, 0.0, 0.0]}, // 12
-        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [-1.0, 0.0, 0.0]},
-        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, -1.0], normal: [-1.0, 0.0, 0.0]},
-        ModelVertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [-1.0, 0.0, 0.0]},
-
-        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, -1.0, 0.0]}, //16
-        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, -1.0, 0.0]},
-        ModelVertex { position: [-1.0, -1.0, 1.0], tex_coords: [-1.0, 1.0], normal: [0.0, -1.0, 0.0]},
-        ModelVertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, -1.0, 0.0]},
-
-        ModelVertex { position: [-1.0, -1.0, -1.0], tex_coords: [-1.0, -1.0], normal: [0.0, 0.0, -1.0]}, // 20
-        ModelVertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, -1.0], normal: [0.0, 0.0, -1.0]},
-        ModelVertex { position: [-1.0, 1.0, -1.0], tex_coords: [-1.0, 1.0], normal: [0.0, 0.0, -1.0]},
-        ModelVertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, -1.0]},
-    ].into();
-    let indices: [u32; 36] = [
-        0, 1, 2,
-        1, 3, 2,
-
-        4, 6, 5,
-        5, 6, 7,
-
-        8, 9, 10,
-        10, 9, 11,
-
-        12, 14, 13,
-        13, 14, 15,
-
-        16, 17, 18,
-        18, 17, 19,
-
-        20, 22, 21,
-        21, 22, 23,
+pub fn cube_mesh(device: &Device, inverted: bool) -> Mesh {
+    let vertices: Vec<ModelVertex> =
+        [
+            ModelVertex {
+                position: [1.0, 1.0, 1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [1.0, 0.0, 0.0],
+            }, // 0
+            ModelVertex {
+                position: [1.0, -1.0, 1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, 1.0, -1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, -1.0, -1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, 1.0, 1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [0.0, 1.0, 0.0],
+            }, // 4
+            ModelVertex {
+                position: [-1.0, 1.0, 1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [0.0, 1.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, 1.0, -1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [0.0, 1.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, 1.0, -1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [0.0, 1.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, 1.0, 1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [0.0, 0.0, 1.0],
+            }, // 8
+            ModelVertex {
+                position: [-1.0, 1.0, 1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            ModelVertex {
+                position: [1.0, -1.0, 1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, 1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, -1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [-1.0, 0.0, 0.0],
+            }, // 12
+            ModelVertex {
+                position: [-1.0, 1.0, -1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [-1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, 1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [-1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, 1.0, 1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [-1.0, 0.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, -1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [0.0, -1.0, 0.0],
+            }, //16
+            ModelVertex {
+                position: [1.0, -1.0, -1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [0.0, -1.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, 1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [0.0, -1.0, 0.0],
+            },
+            ModelVertex {
+                position: [1.0, -1.0, 1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [0.0, -1.0, 0.0],
+            },
+            ModelVertex {
+                position: [-1.0, -1.0, -1.0],
+                tex_coords: [-1.0, -1.0],
+                normal: [0.0, 0.0, -1.0],
+            }, // 20
+            ModelVertex {
+                position: [1.0, -1.0, -1.0],
+                tex_coords: [1.0, -1.0],
+                normal: [0.0, 0.0, -1.0],
+            },
+            ModelVertex {
+                position: [-1.0, 1.0, -1.0],
+                tex_coords: [-1.0, 1.0],
+                normal: [0.0, 0.0, -1.0],
+            },
+            ModelVertex {
+                position: [1.0, 1.0, -1.0],
+                tex_coords: [1.0, 1.0],
+                normal: [0.0, 0.0, -1.0],
+            },
+        ]
+        .into();
+    let mut indices: [u32; 36] = [
+        0, 1, 2, 1, 3, 2, 4, 6, 5, 5, 6, 7, 8, 9, 10, 10, 9, 11, 12, 14, 13, 13, 14, 15, 16, 17,
+        18, 18, 17, 19, 20, 22, 21, 21, 22, 23,
     ];
+    if inverted { indices.reverse(); }
     let name = "Simple_Cube";
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(&format!("{:?} Vertex Buffer", name)),
@@ -128,7 +205,7 @@ pub fn cube_model(
         contents: bytemuck::cast_slice(&indices),
         usage: wgpu::BufferUsages::INDEX,
     });
-    let mesh = Mesh {
+    Mesh {
         name: name.to_string(),
         vertex_buffer,
         index_buffer,
@@ -136,10 +213,17 @@ pub fn cube_model(
         material: None,
         raw_vertices: vertices,
         raw_indices: indices.into(),
-    };
+    }
+}
+
+pub fn cube_model(device: &Device) -> Model {
+    Model { materials: vec![], meshes: vec![cube_mesh(device, false)] }
+}
+
+pub fn double_cube_model(device: &Device) -> Model {
     Model {
-        materials: [].into(),
-        meshes: [mesh].into(),
+        materials: vec![],
+        meshes: vec![cube_mesh(device, true), cube_mesh(device, false)],
     }
 }
 
