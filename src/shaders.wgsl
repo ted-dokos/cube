@@ -75,6 +75,8 @@ fn vs_main(
     out.world_normal = apply_rotor_to_vector(instance.rotation, model.normal);
     out.world_position = calculate_world_position(instance.scale * model.position, instance);
     out.clip_position = calculate_clip_position(out.world_position);
+    out.instance_world_position = instance.position;
+    out.instance_scale = instance.scale;
     out.shader = instance.shader;
     return out;
 }
@@ -85,7 +87,9 @@ struct FragmentInput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) world_position: vec3<f32>,
-    @location(3) shader: u32,
+    @location(3) @interpolate(flat) instance_world_position: vec3<f32>,
+    @location(4) @interpolate(flat) instance_scale: f32,
+    @location(5) shader: u32,
 };
 struct LightingOutput {
     ambient_color: vec3<f32>,
@@ -122,6 +126,7 @@ const Pulse = 2u;
 const Ripple = 3u;
 const ColorTween = 4u;
 const SimpleTransparency = 5u;
+const Aerogel = 6u;
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var unlit: vec4<f32>;
@@ -132,6 +137,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         case Ripple: { unlit = fs_ripple(in); }
         case ColorTween: { unlit = fs_color_tween(in); }
         case SimpleTransparency: { unlit = vec4<f32>(0.5); }
+        case Aerogel: { unlit = fs_aerogel(in); }
         default: { unlit = vec4<f32>(0.0, 0.0, 0.0, 1.0); }
     }
     let light = calculate_lighting(in);
@@ -164,4 +170,26 @@ fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
     let prev_idx = i32(split.whole) % NumTweenColors;
     let next_idx = (prev_idx + 1) % NumTweenColors;
     return vec4<f32>(split.fract * TweenColors[next_idx] + (1.0 - split.fract) * TweenColors[prev_idx], 1.0);
+}
+fn fs_aerogel(in: FragmentInput) -> vec4<f32> {
+    let ray = normalize(in.world_position - camera.view_pos);
+    let box_pos = in.instance_world_position;
+    let box_coords = in.instance_scale * vec3<f32>(1.0, 1.0, 1.0);
+    var d = 1.0;
+
+    var step = sdf_box(in.world_position + d * ray - box_pos, box_coords);
+    let max_iters = 25;
+    var num_iters = 0;
+    while abs(step) > 0.001 && num_iters < max_iters
+    {
+        d -= step;
+        step = sdf_box(in.world_position + d * ray - box_pos, box_coords);
+        num_iters += 1;
+    }
+    return vec4<f32>(0.0, 1.0, 0.0, 1.0 - exp(-d));
+}
+// box = (a,b,c) should be all positive numbers that represent the box [-a,a]*[-b,b]*[-c,c].
+fn sdf_box(point: vec3<f32>, box: vec3<f32>) -> f32 {
+    let q = abs(point) - box;
+    return length(max(q, vec3<f32>(0.0, 0.0, 0.0))) + min(max(max(q.x, q.y), q.z), 0.0);
 }

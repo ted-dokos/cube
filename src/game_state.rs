@@ -124,6 +124,12 @@ impl GameState {
                 rotation: Rotor::identity(),
                 shader: Shader::SimpleTransparency,
             },
+            Instance {
+                position: (3.0, -4.5, 3.0).into(),
+                scale: 0.75,
+                rotation: Rotor::identity(),
+                shader: Shader::Aerogel,
+            }
         ];
         instanced_entities.push(ModelWithInstances { id: 1, instances: simple_cube_instances });
         instanced_entities.push(ModelWithInstances {
@@ -310,6 +316,7 @@ pub enum Shader {
     Ripple = 3,
     ColorTween = 4,
     SimpleTransparency = 5,
+    Aerogel = 6,
 }
 
 #[derive(Clone, Copy)]
