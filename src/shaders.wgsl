@@ -76,6 +76,7 @@ fn vs_main(
     out.world_position = calculate_world_position(instance.scale * model.position, instance);
     out.clip_position = calculate_clip_position(out.world_position);
     out.instance_world_position = instance.position;
+    out.instance_scale = instance.scale;
     out.shader = instance.shader;
     return out;
 }
@@ -87,7 +88,8 @@ struct FragmentInput {
     @location(1) world_normal: vec3<f32>,
     @location(2) world_position: vec3<f32>,
     @location(3) instance_world_position: vec3<f32>,
-    @location(4) shader: u32,
+    @location(4) instance_scale: f32,
+    @location(5) shader: u32,
 };
 struct LightingOutput {
     ambient_color: vec3<f32>,
@@ -172,20 +174,22 @@ fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
 fn fs_aerogel(in: FragmentInput) -> vec4<f32> {
     let ray = normalize(in.world_position - camera.view_pos);
     let box_pos = in.instance_world_position;
+    let box_coords = in.instance_scale * vec3<f32>(1.0, 1.0, 1.0);
     var d = 1.0;
 
-    var step = sdf(in.world_position + d * ray - box_pos);
+    var step = sdf_box(in.world_position + d * ray - box_pos, box_coords);
     let max_iters = 25;
     var num_iters = 0;
     while abs(step) > 0.001 && num_iters < max_iters
     {
         d -= step;
-        step = sdf(in.world_position + d * ray - box_pos);
+        step = sdf_box(in.world_position + d * ray - box_pos, box_coords);
         num_iters += 1;
     }
     return vec4<f32>(0.0, 1.0, 0.0, 1.0 - exp(-d));
 }
-fn sdf(point: vec3<f32>) -> f32 {
-    let q = abs(point) - vec3<f32>(1.0, 1.0, 1.0);
+// box = (a,b,c) should be all positive numbers that represent the box [-a,a]*[-b,b]*[-c,c].
+fn sdf_box(point: vec3<f32>, box: vec3<f32>) -> f32 {
+    let q = abs(point) - box;
     return length(max(q, vec3<f32>(0.0, 0.0, 0.0))) + min(max(max(q.x, q.y), q.z), 0.0);
 }

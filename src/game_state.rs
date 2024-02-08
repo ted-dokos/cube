@@ -126,7 +126,7 @@ impl GameState {
             },
             Instance {
                 position: (3.0, -4.5, 3.0).into(),
-                scale: 1.0,
+                scale: 0.75,
                 rotation: Rotor::identity(),
                 shader: Shader::Aerogel,
             }
