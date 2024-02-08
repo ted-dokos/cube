@@ -87,8 +87,8 @@ struct FragmentInput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) world_position: vec3<f32>,
-    @location(3) instance_world_position: vec3<f32>,
-    @location(4) instance_scale: f32,
+    @location(3) @interpolate(flat) instance_world_position: vec3<f32>,
+    @location(4) @interpolate(flat) instance_scale: f32,
     @location(5) shader: u32,
 };
 struct LightingOutput {
