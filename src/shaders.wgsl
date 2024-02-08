@@ -75,6 +75,7 @@ fn vs_main(
     out.world_normal = apply_rotor_to_vector(instance.rotation, model.normal);
     out.world_position = calculate_world_position(instance.scale * model.position, instance);
     out.clip_position = calculate_clip_position(out.world_position);
+    out.instance_world_position = instance.position;
     out.shader = instance.shader;
     return out;
 }
@@ -85,7 +86,8 @@ struct FragmentInput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) world_position: vec3<f32>,
-    @location(3) shader: u32,
+    @location(3) instance_world_position: vec3<f32>,
+    @location(4) shader: u32,
 };
 struct LightingOutput {
     ambient_color: vec3<f32>,
@@ -169,7 +171,7 @@ fn fs_color_tween(in: FragmentInput) -> vec4<f32> {
 }
 fn fs_aerogel(in: FragmentInput) -> vec4<f32> {
     let ray = normalize(in.world_position - camera.view_pos);
-    let box_pos = vec3<f32>(3.0, -4.5, 3.0);
+    let box_pos = in.instance_world_position;
     var d = 1.0;
 
     var step = sdf(in.world_position + d * ray - box_pos);
