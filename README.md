@@ -10,5 +10,6 @@ Some constructions:
 * Surface normal transitions, allowing objects to transition between flat and smooth shading. The shading and lighting is a basic implementation of Phong shading.
 
   [video](https://github.com/user-attachments/assets/bc2c4d43-e88a-474d-9fdf-52df5d8b97c5)
+
   ![puffy](https://github.com/user-attachments/assets/0d733354-49b2-460b-a5bf-5664c257d19d)
   ![dimpled](https://github.com/user-attachments/assets/b68738a3-99a3-4ae1-bc08-bf99087a7d38)
